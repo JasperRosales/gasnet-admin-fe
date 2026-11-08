@@ -4,6 +4,7 @@ import { fetchAll } from '../lib/fetchAll'
 import { BRANCHES } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import DateButton from '../components/DateButton'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -26,7 +27,7 @@ export default function OverallSales({ headerLeft, date, onDateChange, tableClas
     const to = new Date(from)
     to.setDate(to.getDate() + 1)
 
-    const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+    const sizesResult = await lpgPrices()
     const ordersResult = await fetchAll(() =>
       supabase
         .from('orders')

@@ -45,14 +45,18 @@ function Icon({ name, className = 'size-5' }) {
 
 // expandable = the button opens a list of smaller buttons under it
 const navClass = (active, expandable = false) =>
-  `flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left font-medium text-white hover:opacity-100 ${
-    active && !expandable ? 'bg-brand-red' : active ? 'bg-white/15' : 'bg-transparent hover:bg-white/15'
+  `flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left hover:opacity-100 ${
+    active && !expandable
+      ? 'bg-white text-brand-teal font-semibold'
+      : active
+        ? 'bg-white/15 font-medium text-white'
+        : 'bg-transparent font-medium text-white/85 hover:bg-white/10 hover:text-white'
   }`
 
 // the smaller buttons inside an opened list
 const subClass = (active) =>
-  `w-full rounded-lg px-4 py-2 text-left text-[15px] font-medium text-white hover:opacity-100 ${
-    active ? 'bg-brand-red' : 'bg-transparent hover:bg-white/15'
+  `w-full rounded-lg px-4 py-2 text-left text-[15px] hover:opacity-100 ${
+    active ? 'bg-white text-brand-teal font-semibold' : 'bg-transparent font-medium text-white/85 hover:bg-white/10 hover:text-white'
   }`
 
 // The bell on the right of the top bar: the website orders waiting for Accept / Reject
@@ -64,7 +68,7 @@ function Bell({ count, onClick }) {
       {count > 0 && (
         <button
           type="button"
-          className="relative rounded-xl bg-white px-3 py-1.5 text-[13px] leading-none font-bold whitespace-nowrap text-brand-red shadow-md hover:bg-brand-light max-[900px]:px-2 max-[900px]:py-1 max-[900px]:text-[11px]"
+          className="relative rounded-xl bg-white px-3 py-1.5 text-[14px] leading-none font-bold whitespace-nowrap text-brand-red shadow-md hover:bg-brand-light max-[900px]:px-2 max-[900px]:py-1 max-[900px]:text-[12px]"
           onClick={onClick}
           aria-label={label}
         >
@@ -88,7 +92,7 @@ function Bell({ count, onClick }) {
       </svg>
       {count > 0 && (
         <span
-          className={`absolute -top-0.5 -right-0.5 box-border flex h-[18px] items-center justify-center rounded-full bg-brand-red text-[11px] leading-none font-bold text-white ring-2 ring-white ${
+          className={`absolute -top-0.5 -right-0.5 box-border flex h-[18px] items-center justify-center rounded-full bg-brand-red text-[12px] leading-none font-bold text-white ring-2 ring-white ${
             count < 10 ? 'w-[18px] p-0' : 'min-w-[18px] px-1'
           }`}
         >
@@ -219,7 +223,7 @@ export default function StaffLayout({
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto bg-white p-6 text-left max-[900px]:px-4">
+        <main className="min-w-0 flex-1 overflow-y-auto bg-(--bg) p-6 text-left max-[900px]:px-4">
           {/* a page's code loads the first time it is opened: a short "Loading..." meanwhile */}
           <Suspense fallback={<p className="m-0 text-[14px] text-gray-500">Loading...</p>}>{children}</Suspense>
         </main>

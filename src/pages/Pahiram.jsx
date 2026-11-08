@@ -4,17 +4,18 @@ import { confirmDialog } from '../lib/dialogs'
 import { branchName } from '../lib/branches'
 import { todayString, localDateString } from '../lib/dateUtils'
 import DateButton from '../components/DateButton'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
 const SOLID = 'rounded-lg bg-brand-pine px-4 py-2 text-white hover:bg-brand-pine-light'
-const MINI = 'px-2.5 py-1 text-[12px]'
+const MINI = 'px-2.5 py-1 text-[13px]'
 const MINI_CANCEL = `${MINI} border border-(color:--border) bg-white text-(color:--text)`
-const QTY_INPUT = 'box-border block w-full min-w-0 p-1 text-center text-[13px]'
+const QTY_INPUT = 'box-border block w-full min-w-0 p-1 text-center text-[14px]'
 
 // fixed-size grid with lines like a spreadsheet
 const TABLE =
-  'w-full min-w-[900px] table-fixed border-collapse text-[13px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-1.5 [&_td]:py-2 [&_td]:align-top [&_th]:px-1.5 [&_th]:py-2'
+  'w-full min-w-[900px] table-fixed border-collapse text-[14px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-1.5 [&_td]:py-2 [&_td]:align-top [&_th]:px-1.5 [&_th]:py-2'
 const PANEL =
   'h-[calc(100vh-260px)] min-h-[360px] overflow-auto rounded-xl border border-(color:--border) bg-white'
 
@@ -44,7 +45,7 @@ export default function Pahiram({ branch }) {
 
   const load = async () => {
     setMessage('')
-    const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+    const sizesResult = await lpgPrices()
     const listResult = await supabase.rpc('pahiram_list', { p_branch: branch })
     if (sizesResult.error) {
       setMessage(sizesResult.error.message)
@@ -322,7 +323,7 @@ export default function Pahiram({ branch }) {
                             value={editQtys[s] ?? ''}
                             onChange={setEditQty(s)}
                           />
-                          <div className="text-[11px] text-gray-500">max {it.borrowed}</div>
+                          <div className="text-[12px] text-gray-500">max {it.borrowed}</div>
                         </td>
                       )
                     }
@@ -342,7 +343,7 @@ export default function Pahiram({ branch }) {
                       <td key={`b-${s}`} className="text-center">
                         {remaining}
                         {live > 0 && (
-                          <div className="text-[11px] text-gray-400">of {it.borrowed}</div>
+                          <div className="text-[12px] text-gray-400">of {it.borrowed}</div>
                         )}
                       </td>
                     )
@@ -384,7 +385,7 @@ export default function Pahiram({ branch }) {
         </table>
       </div>
 
-      <p className="mt-3 mb-0 max-w-200 text-[13px] text-gray-600">
+      <p className="mt-3 mb-0 max-w-200 text-[14px] text-gray-600">
         Borrowed: cylinders taken without giving back the empty. They are already counted as sales, so
         the EMPTIES variance of that day goes down and the EMPTIES Ending Inventory goes down with it.
         Returned: type the total returned so far in Edit. The returned empties are counted on the day

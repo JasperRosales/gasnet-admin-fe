@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -49,7 +50,7 @@ export default function Recommendations({ mode, branch }) {
     weekStart.setDate(weekStart.getDate() - 6)
     weekStart.setHours(0, 0, 0, 0)
 
-    const sizesResult = await supabase.from('lpg_prices').select('*').order('sort_order')
+    const sizesResult = await lpgPrices()
 
     let stockQuery = supabase.from('stock').select('branch, item_name, quantity')
     const ordersQuery = () => {
@@ -170,7 +171,7 @@ export default function Recommendations({ mode, branch }) {
           {phase === 'done' && (
             <div>
               <h3 className="mt-0 mb-1 text-lg text-brand-pine">{TITLES[active]}</h3>
-              <p className="mt-0 mb-3 text-[12px] text-gray-500">
+              <p className="mt-0 mb-3 text-[13px] text-gray-500">
                 Generated{' '}
                 {generatedAt.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
               </p>
@@ -230,7 +231,7 @@ export default function Recommendations({ mode, branch }) {
         ) : (
           <span />
         )}
-        <p className="m-0 text-[13px] text-gray-500">
+        <p className="m-0 text-[14px] text-gray-500">
           Sold = units sold {period === 'daily' ? 'today' : 'in the last 7 days'}.
         </p>
       </div>
@@ -257,7 +258,7 @@ export default function Recommendations({ mode, branch }) {
                   <td>{period === 'daily' ? r.soldToday : r.soldWeek}</td>
                   <td>
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-[13px] font-semibold whitespace-nowrap ${STATUS[status].badge}`}
+                      className={`rounded-full px-2.5 py-0.5 text-[14px] font-semibold whitespace-nowrap ${STATUS[status].badge}`}
                     >
                       {STATUS[status].label}
                     </span>

@@ -10,6 +10,7 @@ import { isGcash, isGross, soldOf, sumAmount } from '../lib/monthly'
 import { Entry } from './MonthlySheets'
 import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -74,7 +75,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
       return q
     }
     const [sizesResult, ordersResult, entriesResult] = await Promise.all([
-      supabase.from('lpg_prices').select('size').order('sort_order'),
+      lpgPrices(),
       fetchAll(ordersQuery),
       fetchAll(entriesQuery),
     ])

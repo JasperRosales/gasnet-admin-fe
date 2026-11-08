@@ -13,6 +13,8 @@ import { expenseOf, expensesOfOrders, otherIncomeOfOrders } from '../lib/expense
 import { fullPriceOf } from '../lib/monthly'
 import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
+import { lpgPrices } from '../lib/prices'
+import { liveRefresher } from '../lib/lazyData'
 
 // shown after the customer name: Juan (H)
 const TYPE_SHORT = {
@@ -88,7 +90,7 @@ const SOLID = 'rounded-lg bg-brand-pine px-4 py-2 text-white hover:bg-brand-pine
 // The table always fits the page (fixed column widths) and has grid lines like a spreadsheet.
 // Long text wraps and makes the row taller.
 const TABLE =
-  'w-full min-w-[900px] table-fixed border-collapse text-[13px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-1.5 [&_td]:py-2 [&_td]:align-top [&_td]:[overflow-wrap:anywhere] [&_th]:px-1.5 [&_th]:py-2 [&_th]:[overflow-wrap:anywhere]'
+  'w-full min-w-[900px] table-fixed border-collapse text-[14px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-1.5 [&_td]:py-2 [&_td]:align-top [&_td]:[overflow-wrap:anywhere] [&_th]:px-1.5 [&_th]:py-2 [&_th]:[overflow-wrap:anywhere]'
 
 // boxes for inside the table
 const DANGER = 'rounded-lg bg-brand-red px-4 py-2 text-white'
@@ -113,7 +115,7 @@ const saveSeen = (ids) => {
 // red line around a new order's row (drawn inside the cells, since table rows cannot have a border)
 const NEW_ORDER_OUTLINE =
   '[&>td]:shadow-[inset_0_2px_0_#a80202,inset_0_-2px_0_#a80202] [&>td:first-child]:shadow-[inset_2px_2px_0_#a80202,inset_0_-2px_0_#a80202] [&>td:last-child]:shadow-[inset_-2px_2px_0_#a80202,inset_0_-2px_0_#a80202]'
-const ROW_INPUT = 'box-border block w-full min-w-0 p-1.5 text-[13px]'
+const ROW_INPUT = 'box-border block w-full min-w-0 p-1.5 text-[14px]'
 
 // Share of the table width for each column, in percent (they add up to 100).
 // The size columns (2.7kg, 11kg, 22kg, 50kg) share 20% between them.
@@ -144,7 +146,7 @@ function GrowBox({ value, onChange, placeholder, onKeyDown, ...rest }) {
     <textarea
       ref={ref}
       rows={1}
-      className="box-border block w-full min-w-0 resize-none overflow-hidden rounded-md border border-(color:--border) bg-white p-1.5 text-[13px] leading-snug"
+      className="box-border block w-full min-w-0 resize-none overflow-hidden rounded-md border border-(color:--border) bg-white p-1.5 text-[14px] leading-snug"
       placeholder={placeholder}
       value={value}
       onChange={onChange}
@@ -212,7 +214,7 @@ export default function SalesReport({
 
   // The sizes are needed for the columns. The stock (with the price) is only needed for editing.
   const loadExtra = async () => {
-    const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+    const sizesResult = await lpgPrices()
     let stock = []
     if (canEdit) {
       const stockResult = await supabase
@@ -242,15 +244,18 @@ export default function SalesReport({
 
   // new and changed orders (for example from the customer website) show up without pressing Refresh
   useEffect(() => {
+    // a burst of changes reloads once; nothing reloads while the tab is hidden
+    const live = liveRefresher(() => refresh())
     const channel = supabase
       .channel(`sales-report-${branch}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `branch=eq.${branch}` },
-        () => refresh()
+        live.trigger
       )
       .subscribe()
     return () => {
+      live.stop()
       supabase.removeChannel(channel)
     }
   }, [branch, shownDay])
@@ -874,7 +879,7 @@ export default function SalesReport({
                   return (
                     <td key={s} className="text-center">
                       <input
-                        className="box-border block w-full min-w-0 p-1 text-center text-[13px]"
+                        className="box-border block w-full min-w-0 p-1 text-center text-[14px]"
                         inputMode="numeric"
                         maxLength={6}
                         placeholder="0"
@@ -882,7 +887,7 @@ export default function SalesReport({
                         value={newRow.qtys[s] ?? ''}
                         onChange={setSizeQty(s)}
                       />
-                      <div className="text-[11px] text-gray-500">
+                      <div className="text-[12px] text-gray-500">
                         {avail < 1 ? 'out of stock' : `max ${avail}`}
                       </div>
                     </td>
@@ -902,9 +907,9 @@ export default function SalesReport({
                     {peso(nAmount - (nDiscountOk ? nDiscount : 0))}
                   </div>
                   <div className="mt-1 flex overflow-hidden rounded-md border border-(color:--border) bg-white">
-                    <span className="flex items-center bg-white px-1.5 text-[12px]">₱</span>
+                    <span className="flex items-center bg-white px-1.5 text-[13px]">₱</span>
                     <input
-                      className="min-w-0 flex-1 rounded-none border-0 p-1.5 text-[13px]"
+                      className="min-w-0 flex-1 rounded-none border-0 p-1.5 text-[14px]"
                       inputMode="decimal"
                       placeholder="Discount"
                       value={newRow.discount}
@@ -919,7 +924,7 @@ export default function SalesReport({
                     onChange={setNew('remarks')}
                   />
                 </td>
-                <td className="text-[12px] text-gray-500">
+                <td className="text-[13px] text-gray-500">
                   Double-click after saving
                 </td>
                 {SHOW_OTHER_INCOME && <td></td>}
@@ -987,7 +992,7 @@ export default function SalesReport({
                           <>
                             <input
                               autoFocus
-                              className="box-border block w-full min-w-0 p-1 text-center text-[13px]"
+                              className="box-border block w-full min-w-0 p-1 text-center text-[14px]"
                               inputMode="numeric"
                               maxLength={6}
                               placeholder="0"
@@ -996,7 +1001,7 @@ export default function SalesReport({
                               onKeyDown={cellKeys}
                               onBlur={() => saveSize(g, s)}
                             />
-                            <div className="text-[11px] text-gray-500">
+                            <div className="text-[12px] text-gray-500">
                               {stockOf(s)?.quantity ?? 0} in stock
                             </div>
                           </>
@@ -1019,11 +1024,11 @@ export default function SalesReport({
                     <div className={typedDiscount > 0 ? 'font-semibold' : ''}>{peso(netAmount)}</div>
                     {isEditing(g, 'discount') ? (
                       <div className="mt-1 flex overflow-hidden rounded-md border border-(color:--border) bg-white">
-                        <span className="flex items-center bg-white px-1.5 text-[12px]">₱</span>
+                        <span className="flex items-center bg-white px-1.5 text-[13px]">₱</span>
                         <input
                           autoFocus
                           onFocus={cursorToEnd}
-                          className="min-w-0 flex-1 rounded-none border-0 p-1.5 text-[13px]"
+                          className="min-w-0 flex-1 rounded-none border-0 p-1.5 text-[14px]"
                           inputMode="decimal"
                           placeholder="Discount"
                           value={cell.value}
@@ -1034,7 +1039,7 @@ export default function SalesReport({
                       </div>
                     ) : (
                       discount > 0 && (
-                        <div className="text-[12px] text-gray-500">
+                        <div className="text-[13px] text-gray-500">
                           {peso(amount)} less {peso(discount)} discount
                         </div>
                       )
@@ -1056,7 +1061,7 @@ export default function SalesReport({
                         {o.remarks || ''}
                         {/* the value used in the reports: the sum of the numbers typed */}
                         {expenseOf(o.remarks) > 0 && (
-                          <div className="text-[12px] text-gray-500">= {peso(expenseOf(o.remarks))}</div>
+                          <div className="text-[13px] text-gray-500">= {peso(expenseOf(o.remarks))}</div>
                         )}
                       </>
                     )}
@@ -1064,7 +1069,7 @@ export default function SalesReport({
                   <td className={EDITABLE} onDoubleClick={() => startCell(g, 'utang')}>
                     {isNewOrder(g) && (
                       <span
-                        className="float-right ml-1 flex size-5 items-center justify-center rounded-full bg-brand-red text-[12px] font-bold text-white"
+                        className="float-right ml-1 flex size-5 items-center justify-center rounded-full bg-brand-red text-[13px] font-bold text-white"
                         title="New order from the website"
                         data-export-skip
                       >
@@ -1089,7 +1094,7 @@ export default function SalesReport({
                               type="button"
                               autoFocus={i === 0}
                               onClick={() => toggleRemark(g, r.key)}
-                              className={`rounded-full px-2 py-0.5 text-left text-[11px] font-medium ${
+                              className={`rounded-full px-2 py-0.5 text-left text-[12px] font-medium ${
                                 on ? r.chip : 'border border-(color:--border) bg-white text-gray-500'
                               }`}
                             >
@@ -1104,7 +1109,7 @@ export default function SalesReport({
                         {remarksOf(o).map((key) => {
                           const r = REMARKS.find((x) => x.key === key)
                           return (
-                            <span key={key} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${r.chip}`}>
+                            <span key={key} className={`rounded-full px-2 py-0.5 text-[12px] font-medium ${r.chip}`}>
                               {r.label}
                             </span>
                           )
@@ -1152,7 +1157,7 @@ export default function SalesReport({
                         <>
                           {o.other_income || ''}
                           {expenseOf(o.other_income) > 0 && (
-                            <div className="text-[12px] text-gray-500">
+                            <div className="text-[13px] text-gray-500">
                               = {peso(expenseOf(o.other_income))}{' '}
                               <span
                                 className={`rounded-full px-1.5 text-[10px] font-semibold ${
@@ -1174,7 +1179,7 @@ export default function SalesReport({
                         <div className="grid gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
-                            className="rounded-md bg-brand-pine px-1.5 py-1 text-[11px] font-semibold text-white"
+                            className="rounded-md bg-brand-pine px-1.5 py-1 text-[12px] font-semibold text-white"
                             disabled={acceptingKeys.includes(g.key)}
                             onClick={() => decideRow(g, true)}
                           >
@@ -1182,7 +1187,7 @@ export default function SalesReport({
                           </button>
                           <button
                             type="button"
-                            className="rounded-md border border-brand-red bg-white px-1.5 py-1 text-[11px] font-semibold text-brand-red"
+                            className="rounded-md border border-brand-red bg-white px-1.5 py-1 text-[12px] font-semibold text-brand-red"
                             disabled={acceptingKeys.includes(g.key)}
                             onClick={() => decideRow(g, false)}
                           >
@@ -1190,7 +1195,7 @@ export default function SalesReport({
                           </button>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-orange-700">Waiting</span>
+                        <span className="text-[12px] text-orange-700">Waiting</span>
                       )
                     )}
                   </td>

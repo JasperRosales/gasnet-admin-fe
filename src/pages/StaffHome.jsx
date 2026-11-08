@@ -7,6 +7,7 @@ import { DEFAULT_LOW_LEVEL } from '../lib/stockStatus'
 import { REMARKS, remarksOf } from '../lib/utang'
 import { amountOf } from '../lib/monthly'
 import { loadTankCounts, tankTotals } from '../lib/tankCount'
+import { lpgPrices, branchPrices } from '../lib/prices'
 
 const GREEN = '#0b4436'
 const CARD = 'rounded-2xl border border-(color:--border) bg-white shadow-sm'
@@ -81,8 +82,8 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
   useEffect(() => {
     const load = async () => {
       const [sizesResult, branchResult, stockResult] = await Promise.all([
-        supabase.from('lpg_prices').select('size, price, low_stock_level').order('sort_order'),
-        supabase.from('branch_prices').select('size, price').eq('branch', branch),
+        lpgPrices(),
+        branchPrices(branch),
         supabase.from('stock').select('item_name, quantity').eq('branch', branch),
       ])
       const error = sizesResult.error || stockResult.error
@@ -208,10 +209,10 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
         <h1 className="m-0 text-[clamp(22px,2.2vw,30px)] leading-tight font-bold" style={{ color: GREEN }}>
           Welcome, {firstName}
         </h1>
-        <p className="m-0 text-[13px] text-gray-500">
+        <p className="m-0 text-[14px] text-gray-500">
           Here&apos;s your {branchName(branch)} branch overview for today.
         </p>
-        {message && <p className="m-0 text-[13px] text-brand-red">{message}</p>}
+        {message && <p className="m-0 text-[14px] text-brand-red">{message}</p>}
       </div>
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_260px]">
@@ -230,10 +231,10 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
                   <span className="flex size-8 items-center justify-center rounded-full text-white" style={{ background: GREEN }}>
                     <Icon name={s.icon} className="size-4" />
                   </span>
-                  <span className="text-[13px] leading-tight font-semibold">{s.label}</span>
+                  <span className="text-[14px] leading-tight font-semibold">{s.label}</span>
                 </span>
                 <span className="mt-1 text-[22px] leading-tight font-bold">{s.value}</span>
-                <span className="text-[11px]">{s.sub}</span>
+                <span className="text-[12px]">{s.sub}</span>
               </button>
             ))}
           </div>
@@ -247,14 +248,14 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
                 <button
                   type="button"
                   onClick={() => onOpen('report')}
-                  className="flex items-center gap-1 bg-transparent p-0 text-[12px]"
+                  className="flex items-center gap-1 bg-transparent p-0 text-[13px]"
                   style={{ color: GREEN }}
                 >
                   View All <Icon name="arrow" className="size-3.5" />
                 </button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[420px] border-0 text-[12px] [&_td]:border-0 [&_td]:border-b [&_td]:border-(color:--border) [&_td]:px-2 [&_td]:py-1.5 [&_th]:border-0 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium">
+                <table className="w-full min-w-[420px] border-0 text-[13px] [&_td]:border-0 [&_td]:border-b [&_td]:border-(color:--border) [&_td]:px-2 [&_td]:py-1.5 [&_th]:border-0 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium">
                   <thead>
                     <tr className={MINT}>
                       <th className="bg-transparent">Order #</th>
@@ -276,18 +277,18 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
                             {r.remarks.map((key) => {
                               const rm = REMARKS.find((x) => x.key === key)
                               return (
-                                <span key={key} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${rm.chip}`}>
+                                <span key={key} className={`rounded-full px-2 py-0.5 text-[12px] font-medium ${rm.chip}`}>
                                   {rm.label}
                                 </span>
                               )
                             })}
                             {r.waiting && (
-                              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-800">
+                              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[12px] font-medium text-orange-800">
                                 Waiting
                               </span>
                             )}
                             {r.outForDelivery && (
-                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] font-medium text-amber-900">
                                 Out for delivery
                               </span>
                             )}
@@ -311,7 +312,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
             {/* ---- low stock alerts (the first 3; the rest are counted) ---- */}
             <div className={`${CARD} grid gap-1.5 px-3 py-2.5`}>
               <div className="flex items-center gap-2" style={{ color: GREEN }}>
-                <span className="flex size-5 items-center justify-center rounded-full bg-brand-red text-[12px] font-bold text-white">!</span>
+                <span className="flex size-5 items-center justify-center rounded-full bg-brand-red text-[13px] font-bold text-white">!</span>
                 <h2 className="m-0 text-[15px] font-bold">Low Stock Alerts</h2>
               </div>
               {lowStock.slice(0, 3).map((x) => (
@@ -319,12 +320,12 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
                   key={x.size}
                   type="button"
                   onClick={() => onOpen('inventory')}
-                  className="flex items-center gap-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-left text-[13px] text-gray-900 hover:bg-red-100 hover:opacity-100"
+                  className="flex items-center gap-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-left text-[14px] text-gray-900 hover:bg-red-100 hover:opacity-100"
                 >
                   <Icon name="tank" className="size-5 text-brand-red" />
                   <span className="flex-1">
                     <span className="font-semibold">{x.size} LPG</span>
-                    <span className="block text-[12px] text-brand-red">
+                    <span className="block text-[13px] text-brand-red">
                       {x.left === 0 ? 'out of stock' : `${x.left} tank${x.left === 1 ? '' : 's'} left`}
                     </span>
                   </span>
@@ -335,16 +336,16 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
                 <button
                   type="button"
                   onClick={() => onOpen('inventory')}
-                  className="bg-transparent p-0 text-left text-[12px] text-brand-red underline"
+                  className="bg-transparent p-0 text-left text-[13px] text-brand-red underline"
                 >
                   +{lowStock.length - 3} more
                 </button>
               )}
               {lowStock.length === 0 && (
-                <p className="m-0 text-[13px] text-gray-500">Every size has enough stock.</p>
+                <p className="m-0 text-[14px] text-gray-500">Every size has enough stock.</p>
               )}
               {lowStock.length > 0 && (
-                <p className="m-0 flex gap-1.5 text-[11px] text-gray-500">
+                <p className="m-0 flex gap-1.5 text-[12px] text-gray-500">
                   <Icon name="info" className="size-3.5" />
                   Restock soon to avoid service interruption.
                 </p>
@@ -359,14 +360,14 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
             <Icon name="pin" className="size-4" />
             <span className="flex-1">
               <span className="block text-[14px] font-bold">Current LPG Prices</span>
-              <span className="block text-[11px] text-gray-500">{branchName(branch)} branch</span>
+              <span className="block text-[12px] text-gray-500">{branchName(branch)} branch</span>
             </span>
           </div>
           <div className="grid px-3">
             {prices.map((p) => (
               <div
                 key={p.size}
-                className="flex items-center justify-between border-b border-(color:--border) py-1.5 text-[13px]"
+                className="flex items-center justify-between border-b border-(color:--border) py-1.5 text-[14px]"
                 style={{ color: GREEN }}
               >
                 <span className="font-medium">{p.size}</span>
@@ -378,7 +379,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
             <button
               type="button"
               onClick={onUpdatePrice}
-              className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-[13px] font-semibold text-white"
+              className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-[14px] font-semibold text-white"
               style={{ background: GREEN }}
             >
               <Icon name="refresh" className="size-4" />
@@ -405,7 +406,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
                 <span className="block text-[14px] font-bold">Tanks Count</span>
                 <span className="block text-[18px] leading-tight font-bold">{shown(tankNumbers.total)}</span>
               </span>
-              <span className="grid gap-0.5 border-l border-(color:--border) pl-2.5 text-[11px] text-gray-500">
+              <span className="grid gap-0.5 border-l border-(color:--border) pl-2.5 text-[12px] text-gray-500">
                 <span>
                   Revolving: <strong style={{ color: GREEN }}>{shown(tankNumbers.revolving)}</strong>
                 </span>
@@ -417,7 +418,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
             <button
               type="button"
               onClick={() => onOpen('tankcount')}
-              className="flex items-center justify-center gap-2 rounded-lg py-1.5 text-[13px] font-medium text-white"
+              className="flex items-center justify-center gap-2 rounded-lg py-1.5 text-[14px] font-medium text-white"
               style={{ background: GREEN }}
             >
               Go to Tanks Count <Icon name="arrow" className="size-3.5" />
@@ -432,13 +433,13 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
                 </span>
                 <span>
                   <span className="block text-[14px] font-bold">{q.label}</span>
-                  <span className="block text-[11px] text-gray-500">{q.text}</span>
+                  <span className="block text-[12px] text-gray-500">{q.text}</span>
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => onOpen(q.key)}
-                className="flex items-center justify-center gap-2 rounded-lg py-1.5 text-[13px] font-medium text-white"
+                className="flex items-center justify-center gap-2 rounded-lg py-1.5 text-[14px] font-medium text-white"
                 style={{ background: GREEN }}
               >
                 Go to {q.label} <Icon name="arrow" className="size-3.5" />

@@ -9,6 +9,7 @@ import { confirmDialog } from '../lib/dialogs'
 import { peso } from '../lib/money'
 import { amountOf } from '../lib/monthly'
 import { REMARKS, remarksOf, borrowedOf } from '../lib/utang'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -16,7 +17,7 @@ const SOLID = 'rounded-lg bg-brand-pine px-4 py-2 text-white hover:bg-brand-pine
 const CARD = 'rounded-xl border border-(color:--border) bg-white'
 const FIELD = 'grid gap-1 text-[14px]'
 const TABLE =
-  'w-full min-w-[720px] table-fixed border-collapse text-[13px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-2 [&_td]:py-2 [&_th]:px-2 [&_th]:py-2 [&_td]:text-center [&_th]:text-center'
+  'w-full min-w-[720px] table-fixed border-collapse text-[14px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-2 [&_td]:py-2 [&_th]:px-2 [&_th]:py-2 [&_td]:text-center [&_th]:text-center'
 
 const OVERALL = 0
 
@@ -52,7 +53,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
 
   const load = async () => {
     setMessage('')
-    const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+    const sizesResult = await lpgPrices()
     const ordersQuery = () => {
       let q = supabase
         .from('orders')
@@ -294,7 +295,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
         <Modal onClose={() => setAdding(false)} busy={saving}>
         <form onSubmit={saveProfile} className="grid gap-2.5">
           <h3 className="m-0">New customer profile</h3>
-          <p className="m-0 text-[13px] text-gray-500">
+          <p className="m-0 text-[14px] text-gray-500">
             For customers who do not use the website. Their orders with the same name or contact
             number show in the history.
           </p>
@@ -367,7 +368,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
                 }`}
               >
                 <span className="block font-semibold">{c.name}</span>
-                <span className={`block text-[12px] ${c.key === selectedKey ? 'text-white/80' : 'text-gray-500'}`}>
+                <span className={`block text-[13px] ${c.key === selectedKey ? 'text-white/80' : 'text-gray-500'}`}>
                   {c.contact || 'no contact'} · {c.orders.length} order{c.orders.length === 1 ? '' : 's'}
                 </span>
               </button>
@@ -418,9 +419,9 @@ export default function CustomerProfile({ branch: ownBranch }) {
                     <tr key={r.key}>
                       <td>
                         {dateText(r.when)}
-                        {r.pending && <div className="text-[11px] text-orange-700">waiting</div>}
+                        {r.pending && <div className="text-[12px] text-orange-700">waiting</div>}
                         {branch === OVERALL && selected.branches.length > 1 && (
-                          <div className="text-[11px] text-gray-500">{branchName(r.branch)}</div>
+                          <div className="text-[12px] text-gray-500">{branchName(r.branch)}</div>
                         )}
                       </td>
                       {sizeList.map((s) => (
@@ -439,7 +440,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
                                 {o.item_name.replace('LPG Cylinder ', '')} (of {o.quantity})
                                 <input
                                   autoFocus={o === r.orders[0]}
-                                  className="box-border h-6 w-12 rounded-md p-0 text-center text-[13px]"
+                                  className="box-border h-6 w-12 rounded-md p-0 text-center text-[14px]"
                                   inputMode="numeric"
                                   maxLength={4}
                                   value={borrowEdit.values[o.id] ?? ''}
@@ -460,14 +461,14 @@ export default function CustomerProfile({ branch: ownBranch }) {
                             <div className="flex gap-1">
                               <button
                                 type="button"
-                                className="rounded-md bg-brand-pine px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                                className="rounded-md bg-brand-pine px-1.5 py-0.5 text-[12px] font-semibold text-white"
                                 onClick={() => saveBorrowed(r)}
                               >
                                 Save
                               </button>
                               <button
                                 type="button"
-                                className="rounded-md border border-(color:--border) bg-white px-1.5 py-0.5 text-[11px] text-gray-600"
+                                className="rounded-md border border-(color:--border) bg-white px-1.5 py-0.5 text-[12px] text-gray-600"
                                 onClick={() => setBorrowEdit(null)}
                               >
                                 Cancel
@@ -485,7 +486,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
                             <span className="font-semibold text-brand-red">{peso(r.amount)}</span>
                             <button
                               type="button"
-                              className="rounded-md bg-brand-pine px-2 py-0.5 text-[11px] font-semibold text-white"
+                              className="rounded-md bg-brand-pine px-2 py-0.5 text-[12px] font-semibold text-white"
                               disabled={paying === r.key}
                               onClick={() => markPaid(r, selected)}
                             >
@@ -496,7 +497,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
                         {r.first.utang_status === 'bayad_utang' && (
                           <div className="grid justify-items-center">
                             <span>{peso(r.amount)}</span>
-                            <span className="text-[11px] font-semibold text-green-700">Paid</span>
+                            <span className="text-[12px] font-semibold text-green-700">Paid</span>
                           </div>
                         )}
                       </td>
@@ -506,7 +507,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
                           {remarksOf(r.first).map((key) => {
                             const m = REMARKS.find((x) => x.key === key)
                             return (
-                              <span key={key} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${m.chip}`}>
+                              <span key={key} className={`rounded-full px-2 py-0.5 text-[12px] font-medium ${m.chip}`}>
                                 {m.label}
                               </span>
                             )

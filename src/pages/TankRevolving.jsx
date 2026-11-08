@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import { loadTankCounts, BORROWED_BRANCHES } from '../lib/tankCount'
 import DateButton from '../components/DateButton'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
 const CARD = 'overflow-x-auto rounded-xl border border-(color:--border) bg-white'
 const TABLE =
-  'w-full min-w-[760px] border-collapse text-[13px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2 [&_th]:py-1.5 [&_td]:text-center [&_th]:text-center'
+  'w-full min-w-[760px] border-collapse text-[14px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2 [&_th]:py-1.5 [&_td]:text-center [&_th]:text-center'
 const BRANCH_CELL = '!text-left font-semibold uppercase'
 const TOTAL_ROW = 'bg-[#eef6f3] font-bold'
 
@@ -45,7 +45,7 @@ export default function TankRevolving({ branch: ownBranch }) {
   useEffect(() => {
     const load = async () => {
       setMessage('')
-      const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+      const sizesResult = await lpgPrices()
       if (sizesResult.error) {
         setMessage(sizesResult.error.message)
         return
@@ -142,7 +142,7 @@ export default function TankRevolving({ branch: ownBranch }) {
             {totalRow('revolving', revolvingBranches)}
             {/* filled + empties of each size */}
             <tr>
-              <td className="!text-right text-[12px] text-gray-500">F + E</td>
+              <td className="!text-right text-[13px] text-gray-500">F + E</td>
               {sizes.map((s) => (
                 <td key={s} colSpan={2} className="font-semibold text-brand-red">
                   {shown(both('revolving', revolvingBranches, s))}
@@ -193,8 +193,8 @@ export default function TankRevolving({ branch: ownBranch }) {
 function FE() {
   return (
     <>
-      <th className="w-12 text-[11px] font-medium text-blue-700">F</th>
-      <th className="w-12 text-[11px] font-medium text-blue-700">E</th>
+      <th className="w-12 text-[12px] font-medium text-blue-700">F</th>
+      <th className="w-12 text-[12px] font-medium text-blue-700">E</th>
     </>
   )
 }

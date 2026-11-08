@@ -19,10 +19,10 @@ import {
 
 const CARD = 'overflow-x-auto rounded-xl border border-(color:--border) bg-white'
 const TABLE =
-  'w-full min-w-[860px] border-collapse text-[13px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2 [&_td]:text-center [&_th]:text-center'
+  'w-full min-w-[860px] border-collapse text-[14px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2 [&_td]:text-center [&_th]:text-center'
 const LABEL = '!text-left font-semibold uppercase'
 const SUBTOTAL = 'bg-[#eef6f3] font-semibold'
-const NOTE = 'block text-[11px] font-normal text-gray-500'
+const NOTE = 'block text-[12px] font-normal text-gray-500'
 const NUMBER = 'block text-[15px] font-semibold'
 
 const kgText = (kg) =>
@@ -338,10 +338,10 @@ export function TanksVolume({ orders, sizes, branches = VOLUME_BRANCHES }) {
           </tr>
           <tr>
             {sizeList.map((s) => (
-              <th key={`c-${s}`} className="text-[12px]">{s}</th>
+              <th key={`c-${s}`} className="text-[13px]">{s}</th>
             ))}
             {sizeList.map((s) => (
-              <th key={`v-${s}`} className="bg-[#e6f0e6] text-[12px]">{s}</th>
+              <th key={`v-${s}`} className="bg-[#e6f0e6] text-[13px]">{s}</th>
             ))}
           </tr>
         </thead>

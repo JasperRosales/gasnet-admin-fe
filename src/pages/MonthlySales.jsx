@@ -10,6 +10,7 @@ import { IncomeSummary, VolumeTarget, TanksVolume } from './MonthlySheets'
 import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
 import { entryOf, isGross, isGcash, sumAmount, soldOf } from '../lib/monthly'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -63,7 +64,7 @@ export default function MonthlySales({ branch }) {
     const to = new Date(from)
     to.setMonth(to.getMonth() + 1)
 
-    const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+    const sizesResult = await lpgPrices()
     const ordersResult = await fetchAll(() => {
       let q = supabase
         .from('orders')

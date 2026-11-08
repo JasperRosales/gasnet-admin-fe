@@ -59,10 +59,10 @@ const encodeRemarks = ({ lines, totals = {}, old }) => {
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
-const CELL = 'border border-(color:--border) px-1.5 py-1 text-center text-[13px] whitespace-nowrap'
-const BODY_CELL = 'border border-(color:--border) px-1.5 py-0.5 text-center text-[13px] leading-tight'
-const BODY_LABEL = 'border border-(color:--border) px-3 py-0.5 text-left text-[13px] uppercase'
-const NUMBER_INPUT = 'box-border h-6 w-full max-w-20 min-w-0 rounded-md px-1 py-0 text-center text-[13px]'
+const CELL = 'border border-(color:--border) px-1.5 py-1 text-center text-[14px] whitespace-nowrap'
+const BODY_CELL = 'border border-(color:--border) px-1.5 py-0.5 text-center text-[14px] leading-tight'
+const BODY_LABEL = 'border border-(color:--border) px-3 py-0.5 text-left text-[14px] uppercase'
+const NUMBER_INPUT = 'box-border h-6 w-full max-w-20 min-w-0 rounded-md px-1 py-0 text-center text-[14px]'
 
 // "2.7kg" -> "2.7 KG"
 const sizeLabel = (size) => size.replace(/kg$/i, ' KG').toUpperCase()
@@ -606,7 +606,7 @@ export default function InventoryTable({
           {/* the remark lines: label, total (filled in later), note.
               Equal rows of a fixed height: a long note scrolls inside its own cell. */}
           <div
-            className={`absolute inset-0 grid grid-cols-[36%_14%_50%] text-[13px] ${
+            className={`absolute inset-0 grid grid-cols-[36%_14%_50%] text-[14px] ${
               shownRemarks.old ? 'grid-rows-[repeat(7,minmax(0,1fr))]' : 'grid-rows-[repeat(6,minmax(0,1fr))]'
             }`}
           >
@@ -622,7 +622,7 @@ export default function InventoryTable({
                   {/* the total of the line, typed by the staff */}
                   {editing ? (
                     <input
-                      className="box-border h-6 w-full min-w-0 rounded-md p-0.5 text-center text-[13px]"
+                      className="box-border h-6 w-full min-w-0 rounded-md p-0.5 text-center text-[14px]"
                       inputMode="numeric"
                       maxLength={6}
                       placeholder="0"
@@ -643,7 +643,7 @@ export default function InventoryTable({
                   {/* a long note scrolls inside this cell */}
                   {editing ? (
                     <textarea
-                      className="box-border block h-full w-full min-w-0 resize-none overflow-y-auto rounded-md border border-(color:--border) p-0.5 font-[inherit] text-[13px] leading-tight"
+                      className="box-border block h-full w-full min-w-0 resize-none overflow-y-auto rounded-md border border-(color:--border) p-0.5 font-[inherit] text-[14px] leading-tight"
                       placeholder="Note"
                       value={remarksDraft.lines[line.key] ?? ''}
                       onChange={(e) =>
@@ -665,7 +665,7 @@ export default function InventoryTable({
             {/* a remark saved before the lines existed (plain text): kept and shown here */}
             {shownRemarks.old && (
               <>
-                <div className="col-span-2 flex items-center px-3 py-1.5 text-[12px] text-gray-500">
+                <div className="col-span-2 flex items-center px-3 py-1.5 text-[13px] text-gray-500">
                   Earlier note
                 </div>
                 <div className="min-h-0 overflow-y-auto border-l border-(color:--border) px-2 py-1.5 whitespace-pre-wrap text-gray-600">
@@ -814,7 +814,7 @@ export default function InventoryTable({
                           −{taken}
                         </span>
                       )}
-                      {old > 0 && <span className="text-[11px] text-gray-400">+{old} typed before</span>}
+                      {old > 0 && <span className="text-[12px] text-gray-400">+{old} typed before</span>}
                     </span>
                   )
                 },
@@ -953,7 +953,7 @@ export default function InventoryTable({
 
       {/* the REMARKS totals do not match the table: a warning, saving is still allowed */}
       {rows.length > 0 && mismatches.length > 0 && (
-        <div className="mt-4 max-w-200 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900">
+        <div className="mt-4 max-w-200 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-[14px] text-amber-900">
           <strong>Please check the REMARKS totals:</strong>
           <ul className="mt-1 mb-0 pl-5">
             {mismatches.map((m) => (

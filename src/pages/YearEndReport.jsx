@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { BRANCHES, branchName } from '../lib/branches'
 import { localDateString } from '../lib/dateUtils'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -46,7 +47,7 @@ export default function YearEndReport({ branch: ownBranch }) {
     const from = new Date(year, 0, 1)
     const to = new Date(year + 1, 0, 1)
 
-    const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+    const sizesResult = await lpgPrices()
     const ordersResult = await fetchAll(() => {
       let q = supabase
         .from('orders')

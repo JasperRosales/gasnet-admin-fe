@@ -9,7 +9,7 @@ const OUTLINE =
 const PANEL =
   'h-[calc(100vh-260px)] min-h-[360px] overflow-auto rounded-xl border border-(color:--border) bg-white'
 const TABLE =
-  'w-full min-w-[900px] table-fixed border-collapse text-[13px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-2 [&_td]:py-2 [&_td]:align-top [&_td]:[overflow-wrap:anywhere] [&_th]:px-2 [&_th]:py-2 [&_th]:text-left'
+  'w-full min-w-[900px] table-fixed border-collapse text-[14px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-2 [&_td]:py-2 [&_td]:align-top [&_td]:[overflow-wrap:anywhere] [&_th]:px-2 [&_th]:py-2 [&_th]:text-left'
 
 const OVERALL = 0
 
@@ -182,7 +182,7 @@ export default function AuditLog({ roles = null }) {
                   <td>
                     {log.actor_name || (log.actor_id ? '(no name)' : 'System')}
                     {log.actor_role && (
-                      <div className="text-[12px] text-gray-500">
+                      <div className="text-[13px] text-gray-500">
                         {ROLES[log.actor_role] || log.actor_role}
                       </div>
                     )}
@@ -192,7 +192,7 @@ export default function AuditLog({ roles = null }) {
                     <span className="font-semibold">{title}</span>
                     {about && <span className="text-gray-600"> · {about}</span>}
                     {changes.map((c) => (
-                      <div key={c} className="text-[12px] text-gray-500">{c}</div>
+                      <div key={c} className="text-[13px] text-gray-500">{c}</div>
                     ))}
                   </td>
                 </tr>

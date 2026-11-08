@@ -1,8 +1,11 @@
+import { lpgPrices } from './prices'
+
 export const DEFAULT_LOW_LEVEL = 5
 
 // Low stock level of each size, for example { '5kg': 5, '11kg': 5 }
+// eslint-disable-next-line no-unused-vars
 export async function loadLowLevels(supabase) {
-  const { data } = await supabase.from('lpg_prices').select('size, low_stock_level')
+  const { data } = await lpgPrices() // cached; the supabase argument is kept for old callers
   return Object.fromEntries((data || []).map((p) => [p.size, p.low_stock_level]))
 }
 

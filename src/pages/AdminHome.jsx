@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import { loadTankCounts, tankTotals } from '../lib/tankCount'
 import { peso } from '../lib/money'
+import { lpgPrices, branchPrices } from '../lib/prices'
 
 const GREEN = '#0b4436'
 const RED = '#d4111b'
@@ -67,11 +67,8 @@ export default function AdminHome({
   useEffect(() => {
     const load = async () => {
       setMessage('')
-      const sizesResult = await supabase.from('lpg_prices').select('size, price').order('sort_order')
-      const branchResult = await supabase
-        .from('branch_prices')
-        .select('size, price')
-        .eq('branch', priceBranch)
+      const sizesResult = await lpgPrices()
+      const branchResult = await branchPrices(priceBranch)
       if (sizesResult.error) {
         setMessage(sizesResult.error.message)
         return
@@ -128,7 +125,7 @@ export default function AdminHome({
             <span className="h-10 w-px shrink-0 bg-(--border)" />
             <span className="flex-1">
               <span className="block text-[17px] font-bold">Restock Recommendations</span>
-              <span className="block text-[13px] text-gray-500">
+              <span className="block text-[14px] text-gray-500">
                 Check the latest stock levels and recommended items for each branch.
               </span>
             </span>
@@ -150,7 +147,7 @@ export default function AdminHome({
                 <span className="text-[15px] leading-tight font-semibold">Tanks Count</span>
                 <span className="text-[22px] leading-none font-bold">{shown(tankNumbers.total)}</span>
               </span>
-              <span className="grid gap-2 border-l border-white/25 pl-3 text-[12px] text-white/80">
+              <span className="grid gap-2 border-l border-white/25 pl-3 text-[13px] text-white/80">
                 <span>
                   Revolving:
                   <span className="block text-[16px] font-bold text-white">{shown(tankNumbers.revolving)}</span>
@@ -202,7 +199,7 @@ export default function AdminHome({
 
           <div>
             <h2 className="m-0 mb-1 text-[18px] font-bold" style={{ color: GREEN }}>Current Price</h2>
-            {message && <p className="m-0 text-[13px] text-brand-red">{message}</p>}
+            {message && <p className="m-0 text-[14px] text-brand-red">{message}</p>}
             <div className="grid">
               {prices.map((p) => (
                 <div
@@ -228,7 +225,7 @@ export default function AdminHome({
             Update Price
           </button>
           {!canUpdatePrice && (
-            <p className="m-0 -mt-1 text-[12px] text-gray-500">
+            <p className="m-0 -mt-1 text-[13px] text-gray-500">
               The price of {branchName(priceBranch)} is updated by its staff. You can update{' '}
               {branchName(adminBranch)}.
             </p>

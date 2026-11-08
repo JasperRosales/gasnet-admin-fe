@@ -5,6 +5,7 @@ import { confirmDialog } from '../lib/dialogs'
 import { branchName } from '../lib/branches'
 import { peso } from '../lib/money'
 import Modal from '../components/Modal'
+import { clearPrices } from '../lib/prices'
 
 const FIELD = 'grid gap-1 text-[14px]'
 const INPUT = 'box-border w-full'
@@ -68,6 +69,7 @@ export default function UpdatePrice({ branch, onClose, onSaved }) {
 
     setSaving(true)
     const { error } = await supabase.rpc('update_price', { p_size: size, p_price: value })
+    clearPrices()
     setSaving(false)
 
     if (error) {

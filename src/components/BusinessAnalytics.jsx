@@ -5,9 +5,9 @@ import { BRANCHES } from '../lib/branches'
 import { changeOf } from '../lib/compare'
 
 const CARD = 'flex-1 min-w-[340px] rounded-xl border border-(color:--border) bg-white p-4'
-const TH = 'p-2 text-left text-[13px] font-semibold'
-const TD = 'p-2 text-[13px]'
-const NUM = 'p-2 text-right text-[13px] tabular-nums'
+const TH = 'p-2 text-left text-[14px] font-semibold'
+const TD = 'p-2 text-[14px]'
+const NUM = 'p-2 text-right text-[14px] tabular-nums'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6) // 6 AM to 9 PM
@@ -22,7 +22,7 @@ const hourLabel = (h) => `${h % 12 || 12}${h < 12 ? 'a' : 'p'}`
 export function Change({ change, label }) {
   if (!change) return null
   return (
-    <span className={`text-[13px] font-semibold ${change.good ? 'text-brand-pine-light' : 'text-brand-red'}`}>
+    <span className={`text-[14px] font-semibold ${change.good ? 'text-brand-pine-light' : 'text-brand-red'}`}>
       {change.text} <span className="font-normal text-gray-500">{label}</span>
     </span>
   )
@@ -110,13 +110,13 @@ function PeakHours({ rows }) {
   return (
     <div className={CARD}>
       <h3 className="mt-0 mb-1 text-lg">Peak Hours</h3>
-      <p className="mt-0 mb-3 text-[13px] text-gray-500">
+      <p className="mt-0 mb-3 text-[14px] text-gray-500">
         {any
           ? `Busiest: ${WEEKDAYS[busiestDay]}s, around ${hourLabel(HOURS[busiestHour])}`
           : 'No orders with a time in this period.'}
       </p>
       <div className="overflow-x-auto">
-        <table className="border-0 bg-transparent text-[11px]">
+        <table className="border-0 bg-transparent text-[12px]">
           <thead>
             <tr>
               <th className="bg-transparent p-1" />
@@ -187,7 +187,7 @@ function Customers({ rows }) {
         {total > 0 &&
           split.map((s) => <div key={s.label} className={s.color} style={{ width: `${(s.value / total) * 100}%` }} />)}
       </div>
-      <div className="mb-4 flex flex-wrap gap-x-4 text-[13px]">
+      <div className="mb-4 flex flex-wrap gap-x-4 text-[14px]">
         {split.map((s) => (
           <span key={s.label}>
             <span className={`mr-1 inline-block size-2.5 rounded-full ${s.color}`} />
@@ -196,7 +196,7 @@ function Customers({ rows }) {
         ))}
       </div>
 
-      <div className="mb-2 text-[13px] text-gray-600">
+      <div className="mb-2 text-[14px] text-gray-600">
         {list.length} named customers · {repeat} came back ({pct(repeat, list.length)} repeat rate)
       </div>
       {list.length > 0 && (
@@ -247,7 +247,7 @@ function StockCover({ rows, days, stockBySize, sizes }) {
   return (
     <div className={CARD}>
       <h3 className="mt-0 mb-1 text-lg">Stock Cover &amp; Reorder</h3>
-      <p className="mt-0 mb-3 text-[13px] text-gray-500">
+      <p className="mt-0 mb-3 text-[14px] text-gray-500">
         Days the filled stock lasts at this period&apos;s selling pace ({days} day{days === 1 ? '' : 's'})
       </p>
       <table className="w-full">
@@ -272,7 +272,7 @@ function StockCover({ rows, days, stockBySize, sizes }) {
               <td className={NUM}>{r.cover == null ? '—' : r.cover.toFixed(1)}</td>
               <td className={NUM}>{r.reorder || '—'}</td>
               <td className={TD}>
-                <span className={`rounded-full px-2 py-0.5 text-[12px] font-medium ${r.status.cls}`}>{r.status.text}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[13px] font-medium ${r.status.cls}`}>{r.status.text}</span>
               </td>
             </tr>
           ))}

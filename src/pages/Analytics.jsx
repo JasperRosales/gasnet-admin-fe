@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ResponsiveContainer,
   PieChart,
@@ -15,6 +15,7 @@ import {
 } from 'recharts'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
+import { cachedQuery, invalidate } from '../lib/lazyData'
 import { amountOf } from '../lib/monthly'
 import { expensesOfOrders } from '../lib/expenses'
 import { branchName, BRANCHES } from '../lib/branches'
@@ -95,7 +96,31 @@ const addDays = (day, n) => {
 }
 const daysBetween = (from, to) => Math.round((new Date(`${to}T00:00:00`) - new Date(`${from}T00:00:00`)) / 86400000)
 
-const KPI = 'flex flex-1 min-w-[200px] flex-col gap-1 rounded-xl border border-(color:--border) bg-white p-5 text-left'
+// Only the orders the chosen filter needs are loaded (not every order ever):
+// the period, the period before it (for the % change) and the last 3 months (for the trend chart).
+// Returns { from, to } as 'YYYY-MM-DD' (to is exclusive; null = no limit).
+function neededDays(period, month, year) {
+  if (month && !year) return { from: null, to: null } // the same month in every year
+  if (year) {
+    const prev = month ? new Date(Number(year), Number(month) - 2, 1) : new Date(Number(year) - 1, 0, 1)
+    const end = month ? new Date(Number(year), Number(month), 1) : new Date(Number(year) + 1, 0, 1)
+    return { from: dateString(prev), to: dateString(end) }
+  }
+  const days = PERIODS.find((p) => p.key === period)?.days || 30
+  const from = new Date()
+  from.setHours(0, 0, 0, 0)
+  from.setDate(from.getDate() - (2 * days - 1))
+  const threeMonths = new Date()
+  threeMonths.setHours(0, 0, 0, 0)
+  threeMonths.setDate(1)
+  threeMonths.setMonth(threeMonths.getMonth() - 2)
+  return { from: dateString(from < threeMonths ? from : threeMonths), to: null }
+}
+
+const ORDERS_TTL = 2 * 60 * 1000 // switching filters back and forth reuses loaded orders
+const INVENTORY_TTL = 60 * 1000
+
+const KPI = 'flex flex-col gap-1 rounded-xl border border-(color:--border) bg-white p-5 text-left'
 const CARD = 'flex-1 min-w-[340px] rounded-xl border border-(color:--border) bg-white p-4'
 
 // tooltip for the "revenue vs weight" chart
@@ -105,7 +130,7 @@ const MonthTip = ({ active, payload, label }) => {
   const wt = payload.find((p) => p.dataKey === 'tons')
   const exp = payload.find((p) => p.dataKey === 'expenses')
   return (
-    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[13px] shadow">
+    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[14px] shadow">
       <div className="font-semibold">{label}</div>
       {rev && <div>Revenue: {peso(rev.value)}</div>}
       {exp && <div>Expenses: {peso(exp.value)}</div>}
@@ -125,7 +150,7 @@ const InventoryTip = ({ active, payload }) => {
   const d = payload[0].payload
   const bySize = d.bySize || {}
   return (
-    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[13px] shadow">
+    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[14px] shadow">
       <div className="font-semibold">{d.name}</div>
       <div>{Number(d.value).toLocaleString('en-PH')} cylinders</div>
       <div className="mt-1">
@@ -145,7 +170,7 @@ const OrderSplitTip = ({ active, payload }) => {
   const d = payload[0].payload
   const v = volume(d.kg)
   return (
-    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[13px] shadow">
+    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[14px] shadow">
       <div className="font-semibold">{d.name}</div>
       <div>{d.count.toLocaleString('en-PH')} orders</div>
       <div>{peso(d.revenue)}</div>
@@ -222,7 +247,7 @@ const ProductTip = ({ active, payload, label }) => {
   const rev = payload.find((p) => p.dataKey === 'revenue')
   const orders = payload.find((p) => p.dataKey === 'orders')
   return (
-    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[13px] shadow">
+    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[14px] shadow">
       <div className="font-semibold">{label}</div>
       {rev && <div>{peso(rev.value)}</div>}
       {orders && <div className="text-gray-500">{orders.value} orders</div>}
@@ -242,21 +267,33 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
 
-  // every accepted order; the branch filter is applied below
-  const loadOrders = async () => {
+  const [firstYear, setFirstYear] = useState(null)
+  const need = useMemo(() => neededDays(period, month, year), [period, month, year])
+
+  // the accepted orders in the needed days (all branches; the branch filter is applied below)
+  const loadOrders = useCallback(async () => {
     setLoading(true)
     setMessage('')
-    const { data, error } = await fetchAll(() =>
-      supabase
-        .from('orders')
-        .select('*')
-        .eq('status', 'accepted')
-        .order('accepted_at', { ascending: false })
-        .order('id', { ascending: false })
+    const { data, error } = await cachedQuery(`analytics:orders:${need.from}:${need.to}`, ORDERS_TTL, () =>
+      fetchAll(() => {
+        let q = supabase.from('orders').select('*').eq('status', 'accepted')
+        if (need.from) q = q.gte('accepted_at', new Date(`${need.from}T00:00:00`).toISOString())
+        if (need.to) q = q.lt('accepted_at', new Date(`${need.to}T00:00:00`).toISOString())
+        return q.order('accepted_at', { ascending: false }).order('id', { ascending: false })
+      })
     )
     if (error) setMessage(error.message)
     else setOrders(data)
     setLoading(false)
+  }, [need])
+
+  // the year of the oldest order, for the year filter (one row instead of every order)
+  const loadFirstYear = async () => {
+    const { data } = await cachedQuery('analytics:first-year', 10 * 60 * 1000, () =>
+      supabase.from('orders').select('accepted_at').eq('status', 'accepted').not('accepted_at', 'is', null)
+        .order('accepted_at').limit(1)
+    )
+    setFirstYear(data?.[0] ? new Date(data[0].accepted_at).getFullYear() : null)
   }
 
   // current Filled (stock) and Empty (empties report) counts, per cylinder size
@@ -264,7 +301,7 @@ export default function Analytics() {
     const day = todayString()
     let stockQuery = supabase.from('stock').select('quantity, item_name, branch')
     if (branch !== OVERALL) stockQuery = stockQuery.eq('branch', branch)
-    const { data: stock } = await stockQuery
+    const { data: stock } = await cachedQuery(`analytics:stock:${branch}`, INVENTORY_TTL, () => stockQuery)
     const filledBySize = {}
     let filled = 0
     for (const r of stock || []) {
@@ -276,7 +313,11 @@ export default function Analytics() {
 
     const ids = branch === OVERALL ? BRANCHES.map((b) => b.id) : [branch]
     const results = await Promise.all(
-      ids.map((id) => supabase.rpc('empties_report', { p_branch: id, p_day: day }))
+      ids.map((id) =>
+        cachedQuery(`analytics:empties:${id}:${day}`, INVENTORY_TTL, () =>
+          supabase.rpc('empties_report', { p_branch: id, p_day: day })
+        )
+      )
     )
     const emptyBySize = {}
     let empty = 0
@@ -290,7 +331,9 @@ export default function Analytics() {
     }
 
     // pahiram still outstanding (borrowed but not yet returned), per branch
-    const borrowResults = await Promise.all(ids.map((id) => supabase.rpc('pahiram_list', { p_branch: id })))
+    const borrowResults = await Promise.all(ids.map((id) =>
+        cachedQuery(`analytics:pahiram:${id}`, INVENTORY_TTL, () => supabase.rpc('pahiram_list', { p_branch: id }))
+      ))
     let borrowed = 0
     for (const r of borrowResults) {
       for (const x of r.data || []) {
@@ -303,6 +346,10 @@ export default function Analytics() {
 
   useEffect(() => {
     loadOrders()
+  }, [loadOrders])
+
+  useEffect(() => {
+    loadFirstYear()
   }, [])
 
   useEffect(() => {
@@ -334,10 +381,10 @@ export default function Analytics() {
           ? year
           : chosen.label
 
-  // years that have orders (for the year filter)
-  const years = [
-    ...new Set(orders.filter((o) => o.accepted_at).map((o) => String(new Date(o.accepted_at).getFullYear()))),
-  ].sort((a, b) => b - a)
+  // years from the oldest order to this year (for the year filter)
+  const years = firstYear
+    ? Array.from({ length: new Date().getFullYear() - firstYear + 1 }, (_, i) => String(new Date().getFullYear() - i))
+    : []
 
   const periodAll = orders.filter(inPeriod)
   const rows = branch === OVERALL ? periodAll : periodAll.filter((o) => o.branch === branch)
@@ -575,8 +622,10 @@ export default function Analytics() {
           <button
             className={OUTLINE}
             onClick={() => {
+              invalidate('analytics:') // Refresh always asks Supabase again
               loadOrders()
               loadInventory()
+              loadFirstYear()
             }}
           >
             Refresh
@@ -590,11 +639,11 @@ export default function Analytics() {
         <p>Loading...</p>
       ) : (
         <div>
-          <div className="mb-8 flex flex-wrap gap-4">
+          <div className="mb-8 grid grid-cols-3 gap-4 max-[1100px]:grid-cols-2 max-[640px]:grid-cols-1">
             {kpis.map((k) => (
               <div key={k.label} className={KPI}>
                 <span className="text-[14px] text-gray-500">{k.label}</span>
-                <span className={`text-2xl font-bold ${k.negative ? 'text-brand-red' : 'text-brand-pine'}`}>{k.value}</span>
+                <span className={`text-[26px] leading-tight font-bold tabular-nums ${k.negative ? 'text-brand-red' : 'text-gray-900'}`}>{k.value}</span>
                 {k.sub && <span className="text-[14px] text-gray-500">{k.sub}</span>}
                 <Change change={k.change} label={range?.label} />
               </div>
@@ -705,7 +754,7 @@ export default function Analytics() {
                   </PieChart>
                 </ResponsiveContainer>
               )}
-              <p className="mb-0 text-[12px] text-gray-500">
+              <p className="mb-0 text-[13px] text-gray-500">
                 Instore = walk-in orders, Commercial = commercial customers, Delivered = delivered orders.
                 A single order can fall under more than one slice.
               </p>

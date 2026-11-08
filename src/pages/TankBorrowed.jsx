@@ -5,6 +5,7 @@ import usePopupMessage from '../lib/usePopupMessage'
 import { borrowedOf } from '../lib/utang'
 import { BRANCHES, branchName } from '../lib/branches'
 import { confirmDialog } from '../lib/dialogs'
+import { lpgPrices } from '../lib/prices'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -12,10 +13,10 @@ const PANEL =
   'h-[calc(100vh-280px)] min-h-[360px] overflow-auto rounded-xl border border-(color:--border) bg-white'
 // fixed-size grid with lines like a spreadsheet
 const TABLE =
-  'w-full min-w-[1080px] table-fixed border-collapse text-[13px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-1.5 [&_td]:py-2 [&_td]:align-top [&_td]:[overflow-wrap:anywhere] [&_th]:px-1.5 [&_th]:py-2'
-const MINI = 'px-2.5 py-1 text-[12px]'
+  'w-full min-w-[1080px] table-fixed border-collapse text-[14px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-1.5 [&_td]:py-2 [&_td]:align-top [&_td]:[overflow-wrap:anywhere] [&_th]:px-1.5 [&_th]:py-2'
+const MINI = 'px-2.5 py-1 text-[13px]'
 const MINI_CANCEL = `${MINI} border border-(color:--border) bg-white text-(color:--text)`
-const QTY_INPUT = 'box-border block w-full min-w-0 p-1 text-center text-[13px]'
+const QTY_INPUT = 'box-border block w-full min-w-0 p-1 text-center text-[14px]'
 
 const OVERALL = 0
 
@@ -62,7 +63,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
 
   const load = async () => {
     setMessage('')
-    const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+    const sizesResult = await lpgPrices()
     const ordersQuery = () => {
       let q = supabase
         .from('orders')
@@ -210,7 +211,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
                 setReturning((r) => ({ ...r, qtys: { ...r.qtys, [o.id]: digits(e.target.value) } }))
               }
             />
-            <div className="text-[11px] text-gray-500">max {stillOut(o)}</div>
+            <div className="text-[12px] text-gray-500">max {stillOut(o)}</div>
           </td>
         )
       }
@@ -220,7 +221,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
         <td key={`${kind}-${s}`} className="text-center">
           {qty > 0 ? qty : ''}
           {kind === 'borrowed' && original > 0 && qty !== original && (
-            <div className="text-[11px] text-gray-400">of {original}</div>
+            <div className="text-[12px] text-gray-400">of {original}</div>
           )}
         </td>
       )
@@ -305,7 +306,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
                     {dateText(when)}
                     <div className="text-gray-500">{timeText(when)}</div>
                     {branch === OVERALL && (
-                      <div className="text-[12px] text-gray-500">{branchName(o.branch)}</div>
+                      <div className="text-[13px] text-gray-500">{branchName(o.branch)}</div>
                     )}
                   </td>
                   <td>{o.customer_name}</td>
@@ -315,7 +316,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
                   {sizeCells(row, 'borrowed')}
                   <td>
                     {out === 0 ? (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800">
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[12px] font-medium text-green-800">
                         Returned
                       </span>
                     ) : isReturning ? (
@@ -331,11 +332,11 @@ export default function TankBorrowed({ branch: ownBranch }) {
                       <button className={MINI} onClick={() => startReturn(row)}>Return</button>
                     ) : null}
                     {lastReturn(row) && (
-                      <div className="mt-1 text-[11px] text-gray-500">last on {dateText(lastReturn(row))}</div>
+                      <div className="mt-1 text-[12px] text-gray-500">last on {dateText(lastReturn(row))}</div>
                     )}
                     {canReturn && lastReturn(row) && !isReturning && (
                       <button
-                        className="mt-1 bg-transparent p-0 text-[11px] text-brand-red underline hover:opacity-80"
+                        className="mt-1 bg-transparent p-0 text-[12px] text-brand-red underline hover:opacity-80"
                         onClick={() => undoReturn(row)}
                       >
                         Undo last return
