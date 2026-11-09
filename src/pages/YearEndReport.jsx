@@ -4,6 +4,7 @@ import { fetchAll } from '../lib/fetchAll'
 import { BRANCHES, branchName } from '../lib/branches'
 import { localDateString } from '../lib/dateUtils'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -72,6 +73,9 @@ export default function YearEndReport({ branch: ownBranch }) {
   useEffect(() => {
     load()
   }, [year, branch])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['orders', 'lpg_prices'], load)
 
   // kg sold for a month (1-12, or null for the whole year), customer type, and size
   const kgSold = (month, type, size) =>

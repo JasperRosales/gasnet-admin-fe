@@ -6,6 +6,7 @@ import { borrowedOf } from '../lib/utang'
 import { BRANCHES, branchName } from '../lib/branches'
 import { confirmDialog } from '../lib/dialogs'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -98,6 +99,9 @@ export default function TankBorrowed({ branch: ownBranch }) {
     setReturning(null)
     load()
   }, [branch])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['orders', 'tank_returns', 'lpg_prices'], load)
 
   // the tanks given back so far, and still borrowed, of one order
   const givenBack = (o) => returns.filter((t) => t.order_id === o.id).reduce((sum, t) => sum + t.quantity, 0)

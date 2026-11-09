@@ -11,6 +11,7 @@ import { Entry } from './MonthlySheets'
 import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -101,6 +102,9 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
   useEffect(() => {
     load()
   }, [month, branch])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['orders', 'daily_entries', 'lpg_prices', 'branch_prices'], load)
 
   // save a typed number of a day, then show it right away
   const saveEntry = async (day, key, amount) => {

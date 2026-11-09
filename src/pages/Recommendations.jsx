@@ -4,6 +4,7 @@ import { fetchAll } from '../lib/fetchAll'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -80,6 +81,9 @@ export default function Recommendations({ mode, branch }) {
   useEffect(() => {
     load()
   }, [])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['orders', 'stock', 'lpg_prices'], load)
 
   // Table rows: every branch x every size, with the sales of today and of the last 7 days
   const branchIds = isAdmin

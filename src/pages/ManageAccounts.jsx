@@ -13,6 +13,7 @@ import {
   filterContact,
   contactError,
 } from '../lib/accountRules'
+import useLiveTables from '../lib/useLiveTables'
 
 const emptyForm = {
   fullName: '',
@@ -56,6 +57,9 @@ export default function ManageAccounts({ mode, branch }) {
   useEffect(() => {
     loadAccounts()
   }, [filterBranch])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['profiles'], loadAccounts)
 
   const setField = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 

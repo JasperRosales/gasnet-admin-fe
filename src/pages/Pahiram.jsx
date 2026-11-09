@@ -5,6 +5,7 @@ import { branchName } from '../lib/branches'
 import { todayString, localDateString } from '../lib/dateUtils'
 import DateButton from '../components/DateButton'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -73,6 +74,11 @@ export default function Pahiram({ branch }) {
     setEditId(null)
     load()
   }, [branch])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['pahiram_rows', 'pahiram_items', 'pahiram_returns', 'lpg_prices'], () => {
+    if (!newRow && !editId) load() // never while a row is being added or edited
+  })
 
   // The rows of the chosen day, and (first, highlighted) the rows of earlier days that are still not fully returned
   const dayOf = (row) => localDateString(row.createdAt)

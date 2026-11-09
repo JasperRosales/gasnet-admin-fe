@@ -8,6 +8,7 @@ import { REMARKS, remarksOf } from '../lib/utang'
 import { amountOf } from '../lib/monthly'
 import { loadTankCounts, tankTotals } from '../lib/tankCount'
 import { lpgPrices, branchPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const GREEN = '#0b4436'
 const CARD = 'rounded-2xl border border-(color:--border) bg-white shadow-sm'
@@ -74,6 +75,9 @@ function Trend({ today, yesterday, money = false }) {
 // Staff Home: today's numbers of the branch, the latest orders, low stock, prices, shortcuts.
 export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePrice }) {
   const [prices, setPrices] = useState([])
+  // real time: changes made elsewhere (POS, secretary, other admins) reload the numbers below
+  const [liveTick, setLiveTick] = useState(0)
+  useLiveTables(['orders', 'stock', 'stock_movements', 'inventory', 'empties_days', 'tank_returns', 'pahiram_rows', 'pahiram_items', 'pahiram_returns', 'lpg_prices', 'branch_prices'], () => setLiveTick((t) => t + 1))
   const [stock, setStock] = useState([])
   const [levels, setLevels] = useState({})
   const [message, setMessage] = useState('')
@@ -97,7 +101,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
       setStock(stockResult.data)
     }
     load()
-  }, [branch])
+  }, [branch, liveTick])
 
   // Tanks Count of today, this branch only (like the Tanks Count page)
   useEffect(() => {
@@ -106,7 +110,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
       if (!error) setTankNumbers(tankTotals(counts))
     }
     load()
-  }, [branch])
+  }, [branch, liveTick])
 
   // ---- today's numbers (accepted orders of the day), compared with yesterday ----
   const today = todayString()

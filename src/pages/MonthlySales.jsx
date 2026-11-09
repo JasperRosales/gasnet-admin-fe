@@ -11,6 +11,7 @@ import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
 import { entryOf, isGross, isGcash, sumAmount, soldOf } from '../lib/monthly'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -125,6 +126,9 @@ export default function MonthlySales({ branch }) {
   useEffect(() => {
     load()
   }, [month, branch])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['orders', 'daily_entries', 'monthly_entries', 'lpg_prices', 'branch_prices'], load)
 
   // save a typed number (admin), then show it right away
   const saveEntry = async (entryBranch, key, amount) => {

@@ -4,6 +4,7 @@ import { todayString } from '../lib/dateUtils'
 import { loadTankCounts, BORROWED_BRANCHES } from '../lib/tankCount'
 import DateButton from '../components/DateButton'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -32,6 +33,9 @@ const sum = (list) => {
 // The numbers at the end of the chosen day: see src/lib/tankCount.js
 export default function TankRevolving({ branch: ownBranch }) {
   const [date, setDate] = useState('') // '' means today
+  // real time: changes made elsewhere (POS, secretary, other admins) reload the numbers below
+  const [liveTick, setLiveTick] = useState(0)
+  useLiveTables(['orders', 'stock', 'stock_movements', 'inventory', 'empties_days', 'tank_returns', 'pahiram_rows', 'pahiram_items', 'pahiram_returns', 'lpg_prices'], () => setLiveTick((t) => t + 1))
   const [sizes, setSizes] = useState([])
   const [counts, setCounts] = useState({}) // { "table:branch:size:f|e": number }
   const [message, setMessage] = useState('')
@@ -61,7 +65,7 @@ export default function TankRevolving({ branch: ownBranch }) {
       setCounts(next)
     }
     load()
-  }, [shownDate, ownBranch])
+  }, [shownDate, ownBranch, liveTick])
 
   // a number of the tables; the borrowed E of a branch is 0 when no tank is out
   const value = (table, branchId, size, kind) => {

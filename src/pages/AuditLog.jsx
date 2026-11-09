@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import DateButton from '../components/DateButton'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -125,6 +126,9 @@ export default function AuditLog({ roles = null }) {
   useEffect(() => {
     load()
   }, [shownDate, branch])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['audit_log'], load)
 
   return (
     <div>

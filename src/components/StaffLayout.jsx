@@ -61,18 +61,21 @@ const subClass = (active) =>
 
 // The bell on the right of the top bar: the website orders waiting for Accept / Reject
 // (with a chat bubble "3 New Orders" next to it while orders are waiting)
-function Bell({ count, onClick }) {
-  const label = count > 0 ? `${count} website order${count === 1 ? '' : 's'} waiting` : 'No website orders waiting'
+// count: the red number on the bell; orders: the website orders waiting (the bubble);
+// label: what the bell says to screen readers (default: the website orders waiting)
+function Bell({ count, onClick, orders = count, onOrdersClick = onClick, label: customLabel }) {
+  const label =
+    customLabel ?? (orders > 0 ? `${orders} website order${orders === 1 ? '' : 's'} waiting` : 'No website orders waiting')
   return (
     <div className="ml-auto flex shrink-0 items-center gap-2">
-      {count > 0 && (
+      {orders > 0 && (
         <button
           type="button"
           className="relative rounded-xl bg-white px-3 py-1.5 text-[14px] leading-none font-bold whitespace-nowrap text-brand-red shadow-md hover:bg-brand-light max-[900px]:px-2 max-[900px]:py-1 max-[900px]:text-[12px]"
-          onClick={onClick}
-          aria-label={label}
+          onClick={onOrdersClick}
+          aria-label={`${orders} website order${orders === 1 ? '' : 's'} waiting`}
         >
-          {count > 99 ? '99+' : count} New Order{count === 1 ? '' : 's'}
+          {orders > 99 ? '99+' : orders} New Order{orders === 1 ? '' : 's'}
           {/* the tail of the bubble, pointing at the bell */}
           <span
             className="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 rounded-[2px] bg-inherit"
@@ -82,6 +85,7 @@ function Bell({ count, onClick }) {
       )}
     <button
       type="button"
+      data-bell
       className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-white hover:bg-white/15 max-[900px]:size-9"
       aria-label={label}
       title={label}
@@ -106,7 +110,7 @@ function Bell({ count, onClick }) {
 
 // Top bar (the picture), sidebar on the left (menu, Log Out at the bottom), page on the right.
 // An item can have subItems: they show under it while that item is the active one.
-// bell = { count, onClick }: the bell on the right of the top bar (website orders waiting).
+// bell = { count, onClick, orders?, onOrdersClick?, label? }: the bell on the right of the top bar.
 export default function StaffLayout({
   items,
   active,
@@ -141,7 +145,7 @@ export default function StaffLayout({
             ☰
           </button>
           <img className="block h-[80%] w-auto" src="/cjg-logo-bar.png" alt="CJG Joseph and Norie Trading" />
-          {bell && <Bell count={bell.count} onClick={bell.onClick} />}
+          {bell && <Bell {...bell} />}
         </div>
       </header>
 

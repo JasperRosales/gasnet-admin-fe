@@ -5,6 +5,7 @@ import { BRANCHES } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import DateButton from '../components/DateButton'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -50,6 +51,9 @@ export default function OverallSales({ headerLeft, date, onDateChange, tableClas
   useEffect(() => {
     load()
   }, [shownDate])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['orders', 'lpg_prices', 'branch_prices'], load)
 
   // cylinders sold for one branch and size
   const sold = (branchId, size) =>

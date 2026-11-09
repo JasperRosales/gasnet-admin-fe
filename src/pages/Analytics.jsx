@@ -1,18 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  LabelList,
-} from 'recharts'
+import { useCallback, useEffect, useMemo, useState, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { cachedQuery, invalidate } from '../lib/lazyData'
@@ -24,28 +10,16 @@ import { peso } from '../lib/money'
 import AiInsights from '../components/AiInsights'
 import BusinessAnalytics, { Change } from '../components/BusinessAnalytics'
 import { changeOf } from '../lib/compare'
+import { volume } from '../lib/volume'
+import { useInView } from '../lib/lazyData'
+import useLiveTables from '../lib/useLiveTables'
+import { forecastOf } from '../lib/forecast'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
 const SOLID = 'rounded-lg bg-brand-pine px-4 py-2 text-white hover:bg-brand-pine-light'
 
 const OVERALL = 0
-// shared chart palette (same colors as the Product performance chart)
-const CHART_GREEN = '#005746'
-const CHART_RED = '#a80202'
-const CHART_MINT = '#70e6dc'
-const CHART_AMBER = '#d97706'
-
-// compact value labels drawn on top of the bars
-const compactPeso = (value) => {
-  const n = Number(value || 0)
-  if (n >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `₱${(n / 1_000).toFixed(1)}k`
-  return `₱${n.toFixed(0)}`
-}
-const compactNumber = (value) => Number(value || 0).toFixed(1)
-const compactCount = (value) => Number(value || 0).toLocaleString('en-PH')
-
 const PERIODS = [
   { key: '7', label: '7 days', days: 7 },
   { key: '15', label: '15 days', days: 15 },
@@ -57,9 +31,6 @@ const KNOWN_SIZES = [2.7, 11, 22, 50]
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-const INVENTORY_COLORS = [CHART_GREEN, CHART_RED]
-const ORDER_SPLIT_COLORS = [CHART_GREEN, CHART_RED, CHART_MINT]
-
 // "LPG Cylinder 11kg" -> "11kg"
 const sizeOf = (itemName) => (itemName || '').replace('LPG Cylinder ', '')
 
@@ -67,18 +38,6 @@ const sizeOf = (itemName) => (itemName || '').replace('LPG Cylinder ', '')
 const kgOf = (itemName) => {
   const match = sizeOf(itemName).match(/[\d.]+/)
   return match ? Number(match[0]) : 0
-}
-
-// volume in both units: { tons: "1.23 tons", kg: "1,234.5 kg" }
-const volume = (kg) => {
-  const weight = Number(kg || 0)
-  return {
-    tons: `${(weight / 1000).toLocaleString('en-PH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })} tons`,
-    kg: `${weight.toLocaleString('en-PH', { maximumFractionDigits: 2 })} kg`,
-  }
 }
 
 // first day of the period, as 'YYYY-MM-DD'
@@ -120,140 +79,40 @@ function neededDays(period, month, year) {
 const ORDERS_TTL = 2 * 60 * 1000 // switching filters back and forth reuses loaded orders
 const INVENTORY_TTL = 60 * 1000
 
-const KPI = 'flex flex-col gap-1 rounded-xl border border-(color:--border) bg-white p-5 text-left'
-const CARD = 'flex-1 min-w-[340px] rounded-xl border border-(color:--border) bg-white p-4'
+// the charts (and the chart library, the biggest part of this page) download only when the
+// charts are about to scroll into view
+const AnalyticsCharts = lazy(() => import('../components/AnalyticsCharts'))
 
-// tooltip for the "revenue vs weight" chart
-const MonthTip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  const rev = payload.find((p) => p.dataKey === 'revenue')
-  const wt = payload.find((p) => p.dataKey === 'tons')
-  const exp = payload.find((p) => p.dataKey === 'expenses')
+// a placeholder of the same size until the charts are near the screen and loaded
+const ChartsPlaceholder = () => (
+  <div className="mb-8 flex flex-col gap-4">
+    {[350, 430].map((h) => (
+      <div key={h} className="flex flex-wrap gap-4">
+        {[0, 1].map((i) => (
+          <div key={i} className={`${CARD} animate-pulse bg-gray-50`} style={{ height: h }} />
+        ))}
+      </div>
+    ))}
+  </div>
+)
+
+function LazyCharts(props) {
+  const [ref, seen] = useInView('400px')
   return (
-    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[14px] shadow">
-      <div className="font-semibold">{label}</div>
-      {rev && <div>Revenue: {peso(rev.value)}</div>}
-      {exp && <div>Expenses: {peso(exp.value)}</div>}
-      {rev && exp && <div className="font-semibold">Net: {peso(rev.value - exp.value)}</div>}
-      {wt && (
-        <div className="text-gray-500">
-          {wt.value.toFixed(2)} tons ({(wt.value * 1000).toLocaleString('en-PH')} kg)
-        </div>
+    <div ref={ref}>
+      {seen ? (
+        <Suspense fallback={<ChartsPlaceholder />}>
+          <AnalyticsCharts {...props} />
+        </Suspense>
+      ) : (
+        <ChartsPlaceholder />
       )}
     </div>
   )
 }
 
-// tooltip for the "Filled vs Empty" pie: totals plus the per-size breakdown
-const InventoryTip = ({ active, payload }) => {
-  if (!active || !payload?.length) return null
-  const d = payload[0].payload
-  const bySize = d.bySize || {}
-  return (
-    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[14px] shadow">
-      <div className="font-semibold">{d.name}</div>
-      <div>{Number(d.value).toLocaleString('en-PH')} cylinders</div>
-      <div className="mt-1">
-        {KNOWN_SIZES.map((s) => (
-          <div key={s} className="text-gray-500">
-            {s} kg: {(bySize[s] || 0).toLocaleString('en-PH')}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// tooltip for the "Instore, Commercial & Delivered" pie: revenue, count, weight
-const OrderSplitTip = ({ active, payload }) => {
-  if (!active || !payload?.length) return null
-  const d = payload[0].payload
-  const v = volume(d.kg)
-  return (
-    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[14px] shadow">
-      <div className="font-semibold">{d.name}</div>
-      <div>{d.count.toLocaleString('en-PH')} orders</div>
-      <div>{peso(d.revenue)}</div>
-      <div className="text-gray-500">
-        {v.tons} ({v.kg})
-      </div>
-    </div>
-  )
-}
-
-// rounded label "pill" drawn beside each slice (SVG), with a colored accent bar.
-// The pill is pushed fully outside the donut so it never covers a slice.
-const PieLabelBox = ({ x, y, cy, textAnchor, lines, color }) => {
-  const padX = 10
-  const padY = 7
-  const lineH = 16
-  const bar = 3
-  const gap = 6
-  const edge = 8 // gap between the leader line end and the pill
-  const width = Math.max(...lines.map((l) => l.length)) * 6.3 + padX * 2 + bar + gap
-  const height = lines.length * lineH + padY * 2
-  const align = textAnchor === 'end' ? 'end' : textAnchor === 'middle' ? 'middle' : 'start'
-  // middle (top/bottom) labels are tall, so put them to the side instead of above/below
-  const side = align === 'middle' ? (y < cy ? 'start' : 'end') : align
-  const boxX = side === 'start' ? x + edge : x - width - edge
-  const boxY = y - height / 2
-  const textX = boxX + padX + bar + gap
-  const barX = side === 'end' ? boxX + width - bar : boxX
-
-  return (
-    <g>
-      <rect x={boxX} y={boxY} width={width} height={height} rx={8} fill="#fff" stroke="#e5e7eb" />
-      <rect x={barX} y={boxY + 5} width={bar} height={height - 10} rx={1.5} fill={color} />
-      {lines.map((line, i) => (
-        <text
-          key={i}
-          x={textX}
-          y={boxY + padY + lineH * i + 12}
-          fill={i === 0 ? '#111827' : '#4b5563'}
-          fontSize={i === 0 ? 12 : 11}
-          fontWeight={i === 0 ? 600 : 400}
-        >
-          {line}
-        </text>
-      ))}
-    </g>
-  )
-}
-
-// on-slice labels
-const InventoryPieLabel = ({ name, value, fill, bySize = {}, ...rest }) => (
-  <PieLabelBox
-    {...rest}
-    color={fill}
-    lines={[
-      name,
-      `${Number(value).toLocaleString('en-PH')} cylinders`,
-      ...KNOWN_SIZES.map((s) => `${s} kg: ${(bySize[s] || 0).toLocaleString('en-PH')}`),
-    ]}
-  />
-)
-
-const OrderPieLabel = ({ name, count, revenue, kg, fill, ...rest }) => (
-  <PieLabelBox
-    {...rest}
-    color={fill}
-    lines={[name, `${count.toLocaleString('en-PH')} orders`, peso(revenue), volume(kg).tons]}
-  />
-)
-
-// tooltip for the horizontal product chart
-const ProductTip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  const rev = payload.find((p) => p.dataKey === 'revenue')
-  const orders = payload.find((p) => p.dataKey === 'orders')
-  return (
-    <div className="rounded-lg border border-(color:--border) bg-white px-3 py-2 text-[14px] shadow">
-      <div className="font-semibold">{label}</div>
-      {rev && <div>{peso(rev.value)}</div>}
-      {orders && <div className="text-gray-500">{orders.value} orders</div>}
-    </div>
-  )
-}
+const KPI = 'flex flex-col gap-1 rounded-xl border border-(color:--border) bg-white p-5 text-left'
+const CARD = 'flex-1 min-w-[340px] rounded-xl border border-(color:--border) bg-white p-4'
 
 // Admin analytics: accepted orders into 4 KPIs, a revenue/weight trend chart,
 // inventory and order-split pies, and a product bar chart.
@@ -263,7 +122,7 @@ export default function Analytics() {
   const [year, setYear] = useState('') // 'YYYY' or '' (off)
   const [branch, setBranch] = useState(OVERALL) // 0 = Overall (all branches)
   const [orders, setOrders] = useState([])
-  const [inv, setInv] = useState({ filled: 0, empty: 0, borrowed: 0, filledBySize: {}, emptyBySize: {} })
+  const [inv, setInv] = useState({ filled: 0, empty: 0, borrowed: 0, filledBySize: {}, emptyBySize: {}, loaded: false })
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
 
@@ -271,8 +130,9 @@ export default function Analytics() {
   const need = useMemo(() => neededDays(period, month, year), [period, month, year])
 
   // the accepted orders in the needed days (all branches; the branch filter is applied below)
-  const loadOrders = useCallback(async () => {
-    setLoading(true)
+  // quiet: a live update (no dimming / "Updating…"; the numbers just change)
+  const loadOrders = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
     setMessage('')
     const { data, error } = await cachedQuery(`analytics:orders:${need.from}:${need.to}`, ORDERS_TTL, () =>
       fetchAll(() => {
@@ -341,7 +201,7 @@ export default function Analytics() {
       }
     }
 
-    setInv({ filled, empty, borrowed, filledBySize, emptyBySize })
+    setInv({ filled, empty, borrowed, filledBySize, emptyBySize, loaded: true })
   }
 
   useEffect(() => {
@@ -355,6 +215,16 @@ export default function Analytics() {
   useEffect(() => {
     loadInventory()
   }, [branch])
+
+  // real time: POS sales, edits by the secretary, stock / empties / pahiram / price changes
+  useLiveTables(
+    ['orders', 'stock', 'stock_movements', 'empties_days', 'pahiram_rows', 'pahiram_items', 'pahiram_returns', 'lpg_prices', 'branch_prices'],
+    () => {
+      loadOrders({ quiet: true })
+      loadInventory()
+    },
+    { cachePrefix: 'analytics:', delay: 1500 },
+  )
 
   const revenueOf = amountOf
   // kilograms of LPG for one order: quantity x kg per cylinder
@@ -456,7 +326,12 @@ export default function Analytics() {
   const orderSplit = [
     { name: 'Instore (walk-in)', ...splitOf((o) => o.source === 'walkin') },
     { name: 'Commercial', ...splitOf((o) => o.customer_type === 'commercial') },
-    { name: 'Delivered', ...splitOf((o) => o.delivery_status === 'delivered') },
+    // delivered to the customer: phone / website orders, and walk-in sales with a delivery address
+    // (a counter sale is also 'delivered', handed over right away, but has no address)
+    {
+      name: 'Delivered',
+      ...splitOf((o) => o.delivery_status === 'delivered' && (o.source !== 'walkin' || Boolean(o.customer_address))),
+    },
   ].filter((d) => d.count > 0)
 
   // horizontal product chart: revenue and orders per cylinder size
@@ -478,7 +353,7 @@ export default function Analytics() {
   const netIncome = totalRevenue - totalExpenses
   const pct = (part, whole) => (whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—')
 
-  // per branch (only when viewing all branches): revenue vs expenses vs net
+  // per branch (sent to the AI insights): revenue vs expenses vs net
   const branchFinance = BRANCHES.map((b) => {
     const sel = periodAll.filter((o) => o.branch === b.id)
     const revenue = sel.reduce((sum, o) => sum + revenueOf(o), 0)
@@ -573,6 +448,8 @@ export default function Analytics() {
     customerMix: orderSplit.map((d) => ({ type: d.name, orders: d.count, revenue: r0(d.revenue), kg: r0(d.kg) })),
     inventory: { filled: inv.filled, empty: inv.empty, borrowed: inv.borrowed, filledBySize: inv.filledBySize, emptyBySize: inv.emptyBySize },
     trend: trendChart.map((t) => ({ period: t.label, revenue: r0(t.revenue), expenses: r0(t.expenses), tons: t.tons })),
+    // projections from the last 4 weeks (only when the loaded orders reach today)
+    forecast: year || month ? null : forecastOf(branchOrders, inv.filledBySize, KNOWN_SIZES),
   }
   const aiHasData = totalOrders > 0 || inv.filled + inv.empty > 0
 
@@ -580,7 +457,8 @@ export default function Analytics() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      {/* the title and filters stay pinned at the top of the page while scrolling */}
+      <div className="sticky -top-6 z-20 -mx-6 -mt-6 mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-(color:--border) bg-(--bg) px-6 pt-6 pb-4 max-[900px]:-mx-4 max-[900px]:px-4">
         <div>
           <h1 className="m-0 text-2xl">Analytics</h1>
           <p className="m-0 text-[14px] text-gray-500">
@@ -619,8 +497,10 @@ export default function Analytics() {
               {p.label}
             </button>
           ))}
+          {/* fixed width so "Updating…" never changes the size of the bar (the filters would jump) */}
           <button
-            className={OUTLINE}
+            className={`${OUTLINE} w-[120px] text-center`}
+            disabled={loading}
             onClick={() => {
               invalidate('analytics:') // Refresh always asks Supabase again
               loadOrders()
@@ -628,17 +508,19 @@ export default function Analytics() {
               loadFirstYear()
             }}
           >
-            Refresh
+            {loading ? 'Updating…' : 'Refresh'}
           </button>
         </div>
       </div>
 
       {message && <p className="mt-0">{message}</p>}
 
-      {loading ? (
+      {/* Loading... only the first time; after that the page keeps its numbers (dimmed) while the
+          new ones load, so its height does not collapse and the page does not jump */}
+      {loading && orders.length === 0 ? (
         <p>Loading...</p>
       ) : (
-        <div>
+        <div className={`transition-opacity ${loading ? 'pointer-events-none opacity-60' : ''}`}>
           <div className="mb-8 grid grid-cols-3 gap-4 max-[1100px]:grid-cols-2 max-[640px]:grid-cols-1">
             {kpis.map((k) => (
               <div key={k.label} className={KPI}>
@@ -661,155 +543,25 @@ export default function Analytics() {
             sizes={KNOWN_SIZES}
           />
 
-          <div className="mb-4 flex flex-wrap gap-4">
-            <div className={CARD}>
-              <h3 className="mt-0 mb-2 text-lg">{trendTitle}</h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={trendChart} margin={{ top: 20, right: 8, left: 0, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 12 }}
-                    label={{ value: 'tons', angle: 90, position: 'insideRight', fontSize: 12 }}
-                  />
-                  <Tooltip content={<MonthTip />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill={CHART_GREEN} radius={[4, 4, 0, 0]}>
-                    <LabelList dataKey="revenue" position="top" formatter={compactPeso} fontSize={10} fill="#334155" />
-                  </Bar>
-                  <Bar yAxisId="left" dataKey="expenses" name="Expenses" fill={CHART_AMBER} radius={[4, 4, 0, 0]}>
-                    <LabelList dataKey="expenses" position="top" formatter={compactPeso} fontSize={10} fill="#334155" />
-                  </Bar>
-                  <Bar yAxisId="right" dataKey="tons" name="Weight (tons)" fill={CHART_RED} radius={[4, 4, 0, 0]}>
-                    <LabelList dataKey="tons" position="top" formatter={compactNumber} fontSize={10} fill="#334155" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className={CARD}>
-              <h3 className="mt-0 mb-2 text-lg">Filled vs Empty Analysis</h3>
-              {inventoryPie.length === 0 ? (
-                <p className="text-[14px] text-gray-500">No inventory data</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={320}>
-                  <PieChart>
-                    <Pie
-                      data={inventoryPie}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={48}
-                      outerRadius={78}
-                      paddingAngle={3}
-                      cornerRadius={6}
-                      stroke="#fff"
-                      strokeWidth={2}
-                      label={InventoryPieLabel}
-                      labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                    >
-                      {inventoryPie.map((d, i) => (
-                        <Cell key={d.name} fill={INVENTORY_COLORS[i % INVENTORY_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<InventoryTip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+          <div className="mb-8">
+            <AiInsights
+              summary={aiSummary}
+              hasData={aiHasData}
+              ready={!loading && inv.loaded}
+              autoKey={`${branch}|${period}|${month}|${year}`}
+            />
           </div>
 
-          <div className="mb-8 flex flex-wrap gap-4">
-            <div className={CARD}>
-              <h3 className="mt-0 mb-2 text-lg">Instore, Commercial &amp; Delivered Analysis</h3>
-              {orderSplit.length === 0 ? (
-                <p className="text-[14px] text-gray-500">No accepted orders in this period</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={340}>
-                  <PieChart>
-                    <Pie
-                      data={orderSplit}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={48}
-                      outerRadius={78}
-                      paddingAngle={3}
-                      cornerRadius={6}
-                      stroke="#fff"
-                      strokeWidth={2}
-                      label={OrderPieLabel}
-                      labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                    >
-                      {orderSplit.map((d, i) => (
-                        <Cell key={d.name} fill={ORDER_SPLIT_COLORS[i % ORDER_SPLIT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<OrderSplitTip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-              <p className="mb-0 text-[13px] text-gray-500">
-                Instore = walk-in orders, Commercial = commercial customers, Delivered = delivered orders.
-                A single order can fall under more than one slice.
-              </p>
-            </div>
-
-            <div className={CARD}>
-              <h3 className="mt-0 mb-2 text-lg">Product Performance Analysis (2.7, 11, 22, 50 kg)</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  layout="vertical"
-                  data={productChart}
-                  margin={{ top: 8, right: 56, left: 8, bottom: 8 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis xAxisId="rev" type="number" tick={{ fontSize: 12 }} />
-                  <XAxis xAxisId="orders" type="number" orientation="top" tick={{ fontSize: 12 }} />
-                  <YAxis type="category" dataKey="label" width={56} tick={{ fontSize: 12 }} />
-                  <Tooltip content={<ProductTip />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
-                  <Legend />
-                  <Bar xAxisId="rev" dataKey="revenue" name="Revenue" fill={CHART_GREEN} radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="revenue" position="right" formatter={compactPeso} fontSize={10} fill="#334155" />
-                  </Bar>
-                  <Bar xAxisId="orders" dataKey="orders" name="Orders" fill={CHART_RED} radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="orders" position="right" formatter={compactCount} fontSize={10} fill="#334155" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {branch === OVERALL && branchFinance.length > 0 && (
-            <div className={`${CARD} mb-4`}>
-              <h3 className="mt-0 mb-2 text-lg">Revenue vs Expenses by Branch</h3>
-              <ResponsiveContainer width="100%" height={Math.max(160, branchFinance.length * 56)}>
-                <BarChart data={branchFinance} layout="vertical" margin={{ top: 4, right: 56, left: 8, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={compactPeso} />
-                  <YAxis type="category" dataKey="label" width={96} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => peso(v)} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
-                  <Legend />
-                  <Bar dataKey="revenue" name="Revenue" fill={CHART_GREEN} radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="revenue" position="right" formatter={compactPeso} fontSize={10} fill="#334155" />
-                  </Bar>
-                  <Bar dataKey="expenses" name="Expenses" fill={CHART_AMBER} radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="expenses" position="right" formatter={compactPeso} fontSize={10} fill="#334155" />
-                  </Bar>
-                  <Bar dataKey="net" name="Net income" fill={CHART_MINT} radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="net" position="right" formatter={compactPeso} fontSize={10} fill="#334155" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          <AiInsights summary={aiSummary} hasData={aiHasData} />
+          <LazyCharts
+            trendTitle={trendTitle}
+            trendChart={trendChart}
+            inv={inv}
+            inventoryPie={inventoryPie}
+            orderSplit={orderSplit}
+            orderCount={rows.length}
+            productChart={productChart}
+            sizes={KNOWN_SIZES}
+          />
         </div>
       )}
     </div>

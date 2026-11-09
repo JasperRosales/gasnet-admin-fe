@@ -4,6 +4,7 @@ import { todayString } from '../lib/dateUtils'
 import { loadTankCounts, tankTotals } from '../lib/tankCount'
 import { peso } from '../lib/money'
 import { lpgPrices, branchPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const GREEN = '#0b4436'
 const RED = '#d4111b'
@@ -59,6 +60,9 @@ export default function AdminHome({
   onUpdatePrice,
 }) {
   const [priceBranch, setPriceBranch] = useState(adminBranch)
+  // real time: changes made elsewhere (POS, secretary, other admins) reload the numbers below
+  const [liveTick, setLiveTick] = useState(0)
+  useLiveTables(['orders', 'stock', 'stock_movements', 'inventory', 'empties_days', 'tank_returns', 'pahiram_rows', 'pahiram_items', 'pahiram_returns', 'lpg_prices', 'branch_prices'], () => setLiveTick((t) => t + 1))
   const [prices, setPrices] = useState([])
   const [message, setMessage] = useState('')
   const [tankNumbers, setTankNumbers] = useState({ total: null, revolving: null, borrowed: null })
@@ -77,7 +81,7 @@ export default function AdminHome({
       setPrices(sizesResult.data.map((p) => ({ size: p.size, price: own[p.size] ?? p.price })))
     }
     load()
-  }, [priceBranch])
+  }, [priceBranch, liveTick])
 
   // Tanks Count of today, all branches (like the Tanks Count page)
   useEffect(() => {
@@ -86,7 +90,7 @@ export default function AdminHome({
       if (!error) setTankNumbers(tankTotals(counts))
     }
     load()
-  }, [])
+  }, [liveTick])
 
   const shown = (value) => (value === null || value === undefined ? '—' : value.toLocaleString('en-PH'))
 

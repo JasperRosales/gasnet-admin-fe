@@ -9,15 +9,12 @@ const TH = 'p-2 text-left text-[14px] font-semibold'
 const TD = 'p-2 text-[14px]'
 const NUM = 'p-2 text-right text-[14px] tabular-nums'
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const HOURS = Array.from({ length: 16 }, (_, i) => i + 6) // 6 AM to 9 PM
 
 const sizeKg = (itemName) => Number(((itemName || '').match(/[\d.]+/) || [0])[0])
 const groupKey = (o) => o.group_id || `order-${o.id}`
 const transactionsOf = (list) => new Set(list.map(groupKey)).size
 const revenueOf = (list) => list.reduce((s, o) => s + amountOf(o), 0)
 const pct = (part, whole) => (whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—')
-const hourLabel = (h) => `${h % 12 || 12}${h < 12 ? 'a' : 'p'}`
 
 export function Change({ change, label }) {
   if (!change) return null
@@ -87,68 +84,6 @@ function Leaderboard({ periodAll, prevAll, compareLabel }) {
           </table>
         </div>
       )}
-    </div>
-  )
-}
-
-// Orders by weekday and hour: shows when to staff up and schedule deliveries
-function PeakHours({ rows }) {
-  const grid = WEEKDAYS.map(() => HOURS.map(() => 0))
-  for (const o of rows) {
-    if (!o.accepted_at) continue
-    const d = new Date(o.accepted_at)
-    const h = HOURS.indexOf(d.getHours())
-    if (h >= 0) grid[(d.getDay() + 6) % 7][h] += 1
-  }
-  const max = Math.max(1, ...grid.flat())
-  const byDay = grid.map((r) => r.reduce((a, b) => a + b, 0))
-  const byHour = HOURS.map((_, h) => grid.reduce((s, r) => s + r[h], 0))
-  const busiestDay = byDay.indexOf(Math.max(...byDay))
-  const busiestHour = byHour.indexOf(Math.max(...byHour))
-  const any = byDay.some((n) => n > 0)
-
-  return (
-    <div className={CARD}>
-      <h3 className="mt-0 mb-1 text-lg">Peak Hours</h3>
-      <p className="mt-0 mb-3 text-[14px] text-gray-500">
-        {any
-          ? `Busiest: ${WEEKDAYS[busiestDay]}s, around ${hourLabel(HOURS[busiestHour])}`
-          : 'No orders with a time in this period.'}
-      </p>
-      <div className="overflow-x-auto">
-        <table className="border-0 bg-transparent text-[12px]">
-          <thead>
-            <tr>
-              <th className="bg-transparent p-1" />
-              {HOURS.map((h) => (
-                <th key={h} className="bg-transparent p-1 font-normal text-gray-500">
-                  {hourLabel(h)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {grid.map((row, d) => (
-              <tr key={WEEKDAYS[d]}>
-                <td className="border-0 pr-2 text-gray-600">{WEEKDAYS[d]}</td>
-                {row.map((n, h) => (
-                  <td
-                    key={h}
-                    title={`${WEEKDAYS[d]} ${hourLabel(HOURS[h])}: ${n} orders`}
-                    className="size-7 border border-white text-center"
-                    style={{
-                      background: n ? `rgba(0, 87, 70, ${0.12 + (0.88 * n) / max})` : '#f3f6f4',
-                      color: n / max > 0.5 ? '#fff' : '#14261b',
-                    }}
-                  >
-                    {n || ''}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   )
 }
@@ -250,34 +185,37 @@ function StockCover({ rows, days, stockBySize, sizes }) {
       <p className="mt-0 mb-3 text-[14px] text-gray-500">
         Days the filled stock lasts at this period&apos;s selling pace ({days} day{days === 1 ? '' : 's'})
       </p>
-      <table className="w-full">
-        <thead>
-          <tr>
-            <th className={TH}>Size</th>
-            <th className={`${TH} text-right`}>Sold</th>
-            <th className={`${TH} text-right`}>Per day</th>
-            <th className={`${TH} text-right`}>In stock</th>
-            <th className={`${TH} text-right`}>Days left</th>
-            <th className={`${TH} text-right`}>Order for 7 days</th>
-            <th className={TH}>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((r) => (
-            <tr key={r.kg}>
-              <td className={`${TD} font-semibold`}>{r.kg} kg</td>
-              <td className={NUM}>{r.sold}</td>
-              <td className={NUM}>{r.perDay.toFixed(1)}</td>
-              <td className={NUM}>{r.stock}</td>
-              <td className={NUM}>{r.cover == null ? '—' : r.cover.toFixed(1)}</td>
-              <td className={NUM}>{r.reorder || '—'}</td>
-              <td className={TD}>
-                <span className={`rounded-full px-2 py-0.5 text-[13px] font-medium ${r.status.cls}`}>{r.status.text}</span>
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full whitespace-nowrap">
+          <thead>
+            <tr>
+              <th className={TH}>Size</th>
+              <th className={`${TH} text-right`}>Sold</th>
+              <th className={`${TH} text-right`}>Per day</th>
+              <th className={`${TH} text-right`}>In stock</th>
+              <th className={`${TH} text-right`}>Days left</th>
+              <th className={`${TH} text-right`} title="Cylinders to order so the stock lasts 7 days">Order</th>
+              <th className={TH}>Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {list.map((r) => (
+              <tr key={r.kg}>
+                <td className={`${TD} font-semibold`}>{r.kg} kg</td>
+                <td className={NUM}>{r.sold}</td>
+                <td className={NUM}>{r.perDay.toFixed(1)}</td>
+                <td className={NUM}>{r.stock}</td>
+                <td className={NUM}>{r.cover == null ? '—' : r.cover.toFixed(1)}</td>
+                <td className={NUM}>{r.reorder || '—'}</td>
+                <td className={TD}>
+                  <span className={`rounded-full px-2 py-0.5 text-[13px] font-medium ${r.status.cls}`}>{r.status.text}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mb-0 mt-2 text-[13px] text-gray-500">Order = cylinders to order so the stock lasts 7 days.</p>
     </div>
   )
 }
@@ -288,10 +226,9 @@ export default function BusinessAnalytics({ rows, periodAll, prevAll, showLeader
     <div className="mb-4 flex flex-col gap-4">
       {showLeaderboard && <Leaderboard periodAll={periodAll} prevAll={prevAll} compareLabel={compareLabel} />}
       <div className="flex flex-wrap gap-4">
-        <PeakHours rows={rows} />
+        <StockCover rows={rows} days={days} stockBySize={stockBySize} sizes={sizes} />
         <Customers rows={rows} />
       </div>
-      <StockCover rows={rows} days={days} stockBySize={stockBySize} sizes={sizes} />
     </div>
   )
 }

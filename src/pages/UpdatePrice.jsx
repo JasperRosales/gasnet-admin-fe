@@ -6,6 +6,7 @@ import { branchName } from '../lib/branches'
 import { peso } from '../lib/money'
 import Modal from '../components/Modal'
 import { clearPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const FIELD = 'grid gap-1 text-[14px]'
 const INPUT = 'box-border w-full'
@@ -43,6 +44,9 @@ export default function UpdatePrice({ branch, onClose, onSaved }) {
   useEffect(() => {
     loadPrices()
   }, [])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['lpg_prices', 'branch_prices'], loadPrices)
 
   const current = prices.find((p) => p.size === size)
 

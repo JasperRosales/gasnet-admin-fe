@@ -10,6 +10,7 @@ import { peso } from '../lib/money'
 import { amountOf } from '../lib/monthly'
 import { REMARKS, remarksOf, borrowedOf } from '../lib/utang'
 import { lpgPrices } from '../lib/prices'
+import useLiveTables from '../lib/useLiveTables'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -87,6 +88,9 @@ export default function CustomerProfile({ branch: ownBranch }) {
     setSelectedKey(null)
     load()
   }, [branch])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['orders', 'customer_profiles', 'tank_returns', 'utang_payments', 'lpg_prices'], load)
 
   // ---- the customers and their orders ----
   const customers = []

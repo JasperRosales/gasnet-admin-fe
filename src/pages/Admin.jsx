@@ -2,6 +2,8 @@ import { useEffect, useState, lazy, Suspense } from 'react'
 import { BRANCHES } from '../lib/branches'
 import StaffLayout from '../components/StaffLayout'
 import useWaitingOrders from '../lib/useWaitingOrders'
+import useAdminNotifications from '../lib/useAdminNotifications'
+import { NotificationPanel, NotificationToasts } from '../components/AdminNotifications'
 import { useAddress, go, branchSlug, branchOfSlug } from '../lib/address'
 
 // each page's code downloads only when it is first opened (a faster first load)
@@ -47,7 +49,7 @@ function readPath(path) {
   return { tab: 'branches', branch, branchView }
 }
 
-export default function Admin() {
+export default function Admin({ user }) {
   const path = useAddress()
   const route = readPath(path)
   const { tab, branch, branchView } = route ?? { tab: 'home', branch: OVERALL, branchView: 'inventory' }
@@ -55,6 +57,21 @@ export default function Admin() {
   const [priceOpen, setPriceOpen] = useState(false) // the Update Price pop-up
   const [homeKey, setHomeKey] = useState(0) // changes after a price update, so Home shows the new prices
   const waiting = useWaitingOrders(null) // website orders waiting, every branch
+  const notes = useAdminNotifications(user?.id) // sales, voids, staff edits, low stock, accounts
+  const [panelOpen, setPanelOpen] = useState(false)
+
+  // the page a notification is about
+  const openNotification = (n) => {
+    setPanelOpen(false)
+    notes.dismissFresh(n.id)
+    if (n.link === 'accounts') go(PAGE_PATHS.accounts)
+    else if (n.branch) go(branchPath(n.branch, n.link === 'inventory' ? 'inventory' : 'report'))
+  }
+  // the Daily Sales Log of the first branch with a website order waiting (or Caloocan)
+  const openWaiting = () => {
+    setPanelOpen(false)
+    go(branchPath(waiting[0]?.branch ?? ADMIN_BRANCH, 'report'))
+  }
 
   // an unknown address (for example the login screen just after logging in): Admin Home
   const unknownAddress = route === null
@@ -102,13 +119,32 @@ export default function Admin() {
       activeChild={String(branch)}
       onSelectChild={selectChild}
       bell={{
-        count: waiting.length,
+        count: notes.unread + waiting.length,
+        orders: waiting.length,
+        onOrdersClick: openWaiting,
+        label: `${notes.unread} new notification${notes.unread === 1 ? '' : 's'}, ${waiting.length} website order${waiting.length === 1 ? '' : 's'} waiting`,
         onClick: () => {
-          // the Daily Sales Log of the first branch with a website order waiting (or Caloocan)
-          go(branchPath(waiting[0]?.branch ?? ADMIN_BRANCH, 'report'))
+          if (panelOpen) notes.markAllRead() // closing the panel: everything in it has been seen
+          setPanelOpen(!panelOpen)
         },
       }}
     >
+      {panelOpen && (
+        <NotificationPanel
+          items={notes.items}
+          seenAt={notes.seenAt}
+          waiting={waiting.length}
+          onOpenWaiting={openWaiting}
+          onOpen={openNotification}
+          onMarkAllRead={notes.markAllRead}
+          onClose={() => {
+            notes.markAllRead()
+            setPanelOpen(false)
+          }}
+        />
+      )}
+      <NotificationToasts fresh={panelOpen ? [] : notes.fresh} onDismiss={notes.dismissFresh} onOpen={openNotification} />
+
       {tab === 'home' && (
         <AdminHome
           key={homeKey}

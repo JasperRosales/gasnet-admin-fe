@@ -7,6 +7,7 @@ import { loadLowLevels, stockStatus, statusColor } from '../lib/stockStatus'
 import { todayString } from '../lib/dateUtils'
 import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
+import useLiveTables from '../lib/useLiveTables'
 
 // Set to false to hide the EMPTIES columns.
 const SHOW_EMPTIES = true
@@ -319,6 +320,11 @@ export default function InventoryTable({
     setEditing(false)
     load()
   }, [branch, shownDate, overall])
+
+  // real time: changes made elsewhere (POS, secretary, other admins) show up by themselves
+  useLiveTables(['orders', 'stock', 'stock_movements', 'inventory', 'empties_days', 'tank_returns', 'pahiram_rows', 'pahiram_items', 'pahiram_returns', 'lpg_prices', 'inventory_remarks'], () => {
+    if (!editing) load() // never while the table is being edited
+  })
 
   const emptyBySize = Object.fromEntries(emptyRows.map((e) => [e.size, e]))
 
