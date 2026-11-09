@@ -973,7 +973,7 @@ export default function SalesReport({
                     ) : (
                       <>
                         {o.customer_name} ({TYPE_SHORT[o.customer_type] || 'H'})
-                        {SOURCE_LABELS[o.source] || ''}
+                        {o.customer_type === 'commercial' && o.source === 'walkin' ? '' : SOURCE_LABELS[o.source] || ''}
                       </>
                     )}
                   </td>
