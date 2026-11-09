@@ -67,6 +67,10 @@ export default function UpdatePrice({ branch, onClose, onSaved }) {
       setMessage('Price must be more than ₱0')
       return
     }
+    if (value > 100000) {
+      setMessage('Price must be ₱100,000 or less')
+      return
+    }
     if (!(await confirmDialog(`Are you sure you want to change the price of LPG Cylinder ${size} to ${peso(value)}?`))) {
       return
     }
