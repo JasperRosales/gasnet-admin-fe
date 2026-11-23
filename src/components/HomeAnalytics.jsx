@@ -159,6 +159,98 @@ function SizePie({ rows }) {
   )
 }
 
+// Filled vs empty tanks now: a pie of the two, with each size split below.
+// rows: [{ size, filled, empty }]
+const FILLED = '#0b4436'
+const EMPTY_TANK = '#c9a227'
+function FilledEmpty({ rows }) {
+  const [hover, setHover] = useState(null) // 'filled' | 'empty' | null
+  const filled = sum(rows, (r) => r.filled)
+  const empty = sum(rows, (r) => r.empty)
+  const total = filled + empty
+  const R = 50
+  const CIRC = 2 * Math.PI * (R / 2)
+  const parts = [
+    { key: 'filled', label: 'Filled', value: filled, color: FILLED },
+    { key: 'empty', label: 'Empty', value: empty, color: EMPTY_TANK },
+  ]
+  const GAP = filled > 0 && empty > 0 ? 1.2 : 0
+  const lens = parts.map((p) => (total > 0 ? (p.value / total) * CIRC : 0))
+  const maxSize = Math.max(...rows.map((r) => r.filled + r.empty), 1)
+  return (
+    <div className="grid items-center gap-4 md:grid-cols-[230px_minmax(0,1fr)]">
+      <div className="relative mx-auto size-[230px]">
+        <svg viewBox="0 0 100 100" className="size-full -rotate-90" role="img" aria-label="Filled and empty tanks now">
+          <circle cx="50" cy="50" r="50" fill="#eef2f0" />
+          {parts.map((p, i) =>
+            lens[i] > 0 ? (
+              <circle
+                key={p.key}
+                className="chart-pie-seg cursor-pointer"
+                cx="50"
+                cy="50"
+                r={R / 2}
+                fill="none"
+                stroke={p.color}
+                strokeWidth={R}
+                strokeDasharray={`${Math.max(lens[i] - GAP, 0.01)} ${CIRC}`}
+                strokeDashoffset={-(i ? lens[0] : 0)}
+                style={{ '--c': CIRC, animationDelay: `${i ? (lens[0] / CIRC) * 600 : 0}ms`, opacity: hover && hover !== p.key ? 0.35 : 1 }}
+                onMouseEnter={() => setHover(p.key)}
+                onMouseLeave={() => setHover(null)}
+              >
+                <title>{`${p.label}: ${p.value} tanks (${total ? ((p.value / total) * 100).toFixed(1) : 0}%)`}</title>
+              </circle>
+            ) : null,
+          )}
+        </svg>
+      </div>
+      <div className="grid gap-2">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+          {parts.map((p) => (
+            <span
+              key={p.key}
+              className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 ${hover === p.key ? 'bg-gray-100' : ''}`}
+              onMouseEnter={() => setHover(p.key)}
+              onMouseLeave={() => setHover(null)}
+            >
+              <span className="inline-block size-2.5 rounded-[3px]" style={{ background: p.color }} />
+              <span className="text-gray-700">{p.label}</span>
+              <span className="font-semibold tabular-nums text-gray-900">{p.value.toLocaleString('en-PH')}</span>
+              <span className="text-gray-500">{total ? `${Math.round((p.value / total) * 100)}%` : ''}</span>
+            </span>
+          ))}
+        </div>
+        {/* each size: filled and empty side by side in one bar */}
+        {rows.map((r, i) => (
+          <div key={r.size} className="grid gap-1" title={`${r.size}: ${r.filled} filled, ${r.empty} empty`}>
+            <div className="flex justify-between text-[13px]">
+              <span className="text-gray-700">{r.size}</span>
+              <span className="tabular-nums text-gray-900">
+                {r.filled} <span className="text-gray-500">/ {r.empty}</span>
+              </span>
+            </div>
+            <div style={{ width: `${((r.filled + r.empty) / maxSize) * 100}%` }}>
+              <StackBar
+                parts={[
+                  { label: 'Filled', value: r.filled, color: FILLED },
+                  { label: 'Empty', value: r.empty, color: EMPTY_TANK },
+                ]}
+                total={r.filled + r.empty}
+                height="h-2"
+                delay={i * 60}
+              />
+            </div>
+          </div>
+        ))}
+        <p className="m-0 text-[12px] text-gray-500">
+          {total ? `${Math.round((filled / total) * 100)}% of ${total.toLocaleString('en-PH')} tanks are filled` : 'No tanks counted'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function SectionTitle({ children, hint }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-3">
@@ -168,13 +260,14 @@ function SectionTitle({ children, hint }) {
   )
 }
 
-const EMPTY = { orders: null, stock: [], sizes: [], levels: {}, firstYear: null, message: '' }
+const EMPTY = { orders: null, stock: [], empties: {}, sizes: [], levels: {}, firstYear: null, message: '' }
 
 // everything the analytics need: the accepted orders in [fromKey, toKey), the current stock
 // ([{ branch, item_name, quantity }]), the sizes with their low stock levels, and the year of the
 // oldest order.
 async function fetchHome(fromKey, toKey) {
-  const [ordersResult, stockResult, pricesResult, firstResult] = await Promise.all([
+  const day = dateString(new Date())
+  const [ordersResult, stockResult, pricesResult, firstResult, emptiesResults] = await Promise.all([
     cachedQuery(`home:orders:${fromKey}:${toKey}`, 60 * 1000, () =>
       fetchAll(() =>
         supabase
@@ -191,6 +284,12 @@ async function fetchHome(fromKey, toKey) {
     cachedQuery('home:first-year', 10 * 60 * 1000, () =>
       supabase.from('orders').select('accepted_at').eq('status', 'accepted').not('accepted_at', 'is', null).order('accepted_at').limit(1),
     ),
+    // today's empties of each branch (the Actual Count of the EMPTIES)
+    Promise.all(
+      BRANCHES.map((b) =>
+        cachedQuery(`home:empties:${b.id}:${day}`, 60 * 1000, () => supabase.rpc('empties_report', { p_branch: b.id, p_day: day })),
+      ),
+    ),
   ])
   const error = ordersResult.error || stockResult.error
   const key = `${fromKey}:${toKey}`
@@ -199,6 +298,9 @@ async function fetchHome(fromKey, toKey) {
     key,
     orders: ordersResult.data,
     stock: stockResult.data || [],
+    empties: Object.fromEntries(
+      BRANCHES.map((b, i) => [b.id, Object.fromEntries((emptiesResults[i].data || []).map((e) => [e.size, Number(e.actual ?? e.ending ?? 0)]))]),
+    ),
     sizes: (pricesResult.data || []).map((p) => p.size),
     levels: Object.fromEntries((pricesResult.data || []).map((p) => [p.size, p.low_stock_level])),
     firstYear: firstResult.data?.[0] ? new Date(firstResult.data[0].accepted_at).getFullYear() : null,
@@ -243,11 +345,11 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       current = false
     }
   }, [fromKey, toKey])
-  useLiveTables(['orders', 'stock', 'stock_movements', 'lpg_prices'], () => fetchHome(fromKey, toKey).then(setData), {
+  useLiveTables(['orders', 'stock', 'stock_movements', 'empties_days', 'lpg_prices'], () => fetchHome(fromKey, toKey).then(setData), {
     cachePrefix: 'home:',
     delay: 1500,
   })
-  const { orders, stock, sizes, levels, message } = data
+  const { orders, stock, empties, sizes, levels, message } = data
   const firstYear = data.firstYear ?? now.getFullYear()
 
   // dimmed while the numbers of a newly picked period load
@@ -316,6 +418,13 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
     sum(stock.filter((r) => r.branch === id && sizeOf(r.item_name) === size), (r) => Number(r.quantity || 0))
   const invBranches = BRANCHES.filter((b) => branchIds.includes(b.id))
   const statusOf = (qty, size) => stockStatus(`LPG Cylinder ${size}`, qty, levels)
+  // filled vs empty tanks now, per size (empties: today's Actual Count of the EMPTIES)
+  const emptyOf = (id, size) => Number(empties[id]?.[size] || 0)
+  const tankSplit = sizes.map((s) => ({
+    size: s,
+    filled: sum(invBranches, (b) => filledOf(b.id, s)),
+    empty: sum(invBranches, (b) => emptyOf(b.id, s)),
+  }))
   const grid = invBranches.map((b) => ({ ...b, cells: sizes.map((s) => ({ size: s, qty: filledOf(b.id, s) })) }))
 
   const years = Array.from({ length: now.getFullYear() - firstYear + 1 }, (_, i) => String(now.getFullYear() - i))
@@ -479,12 +588,28 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
           />
         </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-4 xl:grid-cols-2">
         {/* sizes */}
         <div className={PANEL}>
           <span className={`${PANEL_TITLE} mb-2 block`}>Sales by size</span>
           <SizePie key={animKey} rows={sizeRows} />
           <Legend items={[{ mark: '%', label: `share of revenue, ${periodText}` }, { mark: 'pcs', label: 'tanks sold' }]} />
+        </div>
+
+        {/* filled vs empty tanks, now */}
+        <div className={PANEL}>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
+            <span className={PANEL_TITLE}>Filled vs empty tanks</span>
+            <span className="text-[13px] text-gray-500">{scopeText} · now</span>
+          </div>
+          <FilledEmpty key={animKey} rows={tankSplit} />
+          <Legend
+            items={[
+              { color: FILLED, label: 'Filled (ready to sell)' },
+              { color: EMPTY_TANK, label: 'Empty (to refill)' },
+              { mark: 'a / b', label: 'filled / empty per size' },
+            ]}
+          />
         </div>
 
       </div>
