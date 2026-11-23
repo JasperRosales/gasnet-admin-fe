@@ -528,6 +528,9 @@ export default function Analytics() {
             ))}
           </div>
 
+          {/* the two charts first, then the insight cards */}
+          <LazyCharts trendTitle={trendTitle} trendChart={trendChart} productChart={productChart} />
+
           <BusinessAnalytics
             rows={rows}
             days={periodDays}
@@ -543,8 +546,6 @@ export default function Analytics() {
               autoKey={`${branch}|${period}|${month}|${year}`}
             />
           </div>
-
-          <LazyCharts trendTitle={trendTitle} trendChart={trendChart} productChart={productChart} />
         </div>
       )}
     </div>
