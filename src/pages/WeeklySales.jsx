@@ -62,7 +62,10 @@ export default function WeeklySales({ branch }) {
   usePopupMessage(message)
   const tableArea = useRef(null)
 
+  const today = todayString()
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i))
+  // Per Day lists only the days that have come (this week: Monday up to today, no days ahead)
+  const shownDays = days.filter((d) => d <= today)
   const shownBranches = branch ? BRANCHES.filter((b) => b.id === branch) : BRANCHES
 
   const load = async () => {
@@ -159,8 +162,8 @@ export default function WeeklySales({ branch }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button className={OUTLINE} onClick={() => setStart(addDays(start, -7))} aria-label="Previous week">‹</button>
-          <DateButton value={start} onChange={(v) => v && setStart(mondayOf(v))} />
-          <button className={OUTLINE} onClick={() => setStart(addDays(start, 7))} aria-label="Next week">›</button>
+          <DateButton value={start} onChange={(v) => v && setStart(mondayOf(v > today ? today : v))} />
+          <button className={OUTLINE} disabled={addDays(start, 7) > today} onClick={() => setStart(addDays(start, 7))} aria-label="Next week">›</button>
           <button className={OUTLINE} onClick={() => setStart(mondayOf(todayString()))}>This week</button>
           <button className={OUTLINE} onClick={load}>Refresh</button>
           <DownloadButtons
@@ -216,7 +219,7 @@ export default function WeeklySales({ branch }) {
           </thead>
           <tbody>
             {sheet === 'days'
-              ? days.map((d) => (
+              ? shownDays.map((d) => (
                   <tr key={d}>
                     <td className={LABEL}>{dayLabel(d)}</td>
                     {cells(dayOrders.filter((o) => localDateString(o.accepted_at) === d), dayBranches, [d])}
