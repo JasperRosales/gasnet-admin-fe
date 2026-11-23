@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { cachedQuery } from '../lib/lazyData'
-import { amountOf, isGcash, isUtang } from '../lib/monthly'
+import { amountOf } from '../lib/monthly'
 import { expensesOfOrders } from '../lib/expenses'
 import { BRANCHES, branchName } from '../lib/branches'
-import { dateString, todayString } from '../lib/dateUtils'
+import { dateString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { changeOf } from '../lib/compare'
 import { lpgPrices } from '../lib/prices'
@@ -25,14 +25,6 @@ const pad2 = (n) => String(n).padStart(2, '0')
 const C = {
   revenue: '#0b4436',
   expenses: '#d97706',
-  cash: '#0b4436',
-  gcash: '#2f6fb5',
-  utang: '#c2410c',
-  filled: '#0b4436',
-  empty: '#c9a227',
-  ok: '#166534',
-  low: '#b45309',
-  out: '#b91c1c',
 }
 const STATUS_STYLE = {
   'In stock': 'bg-[#e6f2ec] text-[#166534]',
@@ -103,14 +95,13 @@ function SectionTitle({ children, hint }) {
   )
 }
 
-const EMPTY = { orders: null, stock: [], empties: {}, sizes: [], levels: {}, firstYear: null, message: '' }
+const EMPTY = { orders: null, stock: [], sizes: [], levels: {}, firstYear: null, message: '' }
 
-// everything the analytics need: the accepted orders in [fromKey, toKey), the current stock,
-// today's empties, the sizes with their low stock levels, and the year of the oldest order.
-// stock: [{ branch, item_name, quantity }], empties: { branch: { size: count } }
+// everything the analytics need: the accepted orders in [fromKey, toKey), the current stock
+// ([{ branch, item_name, quantity }]), the sizes with their low stock levels, and the year of the
+// oldest order.
 async function fetchHome(fromKey, toKey) {
-  const day = todayString()
-  const [ordersResult, stockResult, pricesResult, emptiesResults, firstResult] = await Promise.all([
+  const [ordersResult, stockResult, pricesResult, firstResult] = await Promise.all([
     cachedQuery(`home:orders:${fromKey}:${toKey}`, 60 * 1000, () =>
       fetchAll(() =>
         supabase
@@ -124,13 +115,6 @@ async function fetchHome(fromKey, toKey) {
     ),
     cachedQuery('home:stock', 60 * 1000, () => supabase.from('stock').select('branch, item_name, quantity')),
     lpgPrices(),
-    Promise.all(
-      BRANCHES.map((b) =>
-        cachedQuery(`home:empties:${b.id}:${day}`, 60 * 1000, () =>
-          supabase.rpc('empties_report', { p_branch: b.id, p_day: day }),
-        ),
-      ),
-    ),
     cachedQuery('home:first-year', 10 * 60 * 1000, () =>
       supabase.from('orders').select('accepted_at').eq('status', 'accepted').not('accepted_at', 'is', null).order('accepted_at').limit(1),
     ),
@@ -138,16 +122,10 @@ async function fetchHome(fromKey, toKey) {
   const error = ordersResult.error || stockResult.error
   const key = `${fromKey}:${toKey}`
   if (error) return { ...EMPTY, key, orders: [], message: error.message }
-  const empties = {}
-  BRANCHES.forEach((b, i) => {
-    empties[b.id] = {}
-    for (const r of emptiesResults[i].data || []) empties[b.id][r.size] = Number(r.actual ?? r.ending ?? 0)
-  })
   return {
     key,
     orders: ordersResult.data,
     stock: stockResult.data || [],
-    empties,
     sizes: (pricesResult.data || []).map((p) => p.size),
     levels: Object.fromEntries((pricesResult.data || []).map((p) => [p.size, p.low_stock_level])),
     firstYear: firstResult.data?.[0] ? new Date(firstResult.data[0].accepted_at).getFullYear() : null,
@@ -157,9 +135,8 @@ async function fetchHome(fromKey, toKey) {
 
 // Admin Home analytics, filtered by one branch (or all), a month (or the whole year) and a year:
 //  Sales: the period's numbers vs the same days of the period before, revenue vs expenses per day
-//  (or per month for a whole year), sales by hour, sizes, payments, branches.
-//  Inventory (always now): filled stock per branch and size (low / out), days of stock left
-//  (from the last 7 days of sales), filled vs empty tanks per branch.
+//  (or per month for a whole year), sales by size and by branch.
+//  Inventory (always now): filled stock per branch and size, with low / out of stock marked.
 export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const now = new Date()
   const [picked, setPicked] = useState(ALL) // the branch filter: ALL or a branch id
@@ -182,8 +159,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const prevStart = m ? new Date(y, m - 2, 1) : new Date(y - 1, 0, 1)
   const todayStart = daysAgo(0)
   const tomorrow = daysAgo(-1)
-  const weekStart = daysAgo(6)
-  const fromKey = dateString(prevStart < weekStart ? prevStart : weekStart)
+  const fromKey = dateString(prevStart)
   const toKey = dateString(end > tomorrow ? end : tomorrow)
 
   // loads again when the period changes, and on every live change of the tables below
@@ -194,11 +170,11 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       current = false
     }
   }, [fromKey, toKey])
-  useLiveTables(['orders', 'stock', 'stock_movements', 'empties_days', 'lpg_prices'], () => fetchHome(fromKey, toKey).then(setData), {
+  useLiveTables(['orders', 'stock', 'stock_movements', 'lpg_prices'], () => fetchHome(fromKey, toKey).then(setData), {
     cachePrefix: 'home:',
     delay: 1500,
   })
-  const { orders, stock, empties, sizes, levels, message } = data
+  const { orders, stock, sizes, levels, message } = data
   const firstYear = data.firstYear ?? now.getFullYear()
 
   // dimmed while the numbers of a newly picked period load
@@ -220,7 +196,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const period = between(start, periodEnd)
   const prev = between(prevStart, prevEnd)
   const today = between(todayStart, tomorrow)
-  const last7 = between(weekStart, tomorrow)
   const net = (list) => revenue(list) - expensesOfOrders(list)
   const future = start > todayStart
   const unit = m ? 'month' : 'year'
@@ -244,31 +219,12 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const trendMax = Math.max(...trend.map((d) => Math.max(d.revenue, d.expenses)), 1)
   const best = trend.reduce((a, b) => (b.revenue > (a?.revenue ?? 0) ? b : a), null)
 
-  // sales by hour: tanks sold a day on average, in each hour of the period
-  const HOURS = Array.from({ length: 16 }, (_, i) => i + 6) // 6 AM to 9 PM
-  const hourOf = (o) => new Date(o.accepted_at).getHours()
-  const hours = HOURS.map((h) => ({ h, avg: tanksOf(period.filter((o) => hourOf(o) === h)) / elapsedDays }))
-  const hourMax = Math.max(...hours.map((x) => x.avg), 0.0001)
-  const busiest = hours.reduce((a, b) => (b.avg > a.avg ? b : a), hours[0])
-  const hourText = (h) => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
-
   // sizes sold in the period
   const sizeRows = sizes.map((s) => {
     const list = period.filter((o) => sizeOf(o.item_name) === s)
     return { size: s, tanks: tanksOf(list), revenue: revenue(list) }
   })
   const sizeMax = Math.max(...sizeRows.map((s) => s.revenue), 1)
-
-  // payments in the period
-  const utang = revenue(period.filter(isUtang))
-  const gcash = revenue(period.filter(isGcash))
-  const cash = revenue(period) - utang - gcash
-  const payTotal = cash + gcash + utang
-  const payments = [
-    { label: 'Cash', value: cash, color: C.cash },
-    { label: 'GCash', value: gcash, color: C.gcash },
-    { label: 'Utang (unpaid)', value: utang, color: C.utang },
-  ]
 
   // the period by branch
   const branchRows = BRANCHES.filter((b) => branchIds.includes(b.id))
@@ -285,24 +241,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const invBranches = BRANCHES.filter((b) => branchIds.includes(b.id))
   const statusOf = (qty, size) => stockStatus(`LPG Cylinder ${size}`, qty, levels)
   const grid = invBranches.map((b) => ({ ...b, cells: sizes.map((s) => ({ size: s, qty: filledOf(b.id, s) })) }))
-
-  // days of stock left per size: filled now / average tanks sold a day (last 7 days)
-  const cover = sizes.map((s) => {
-    const filled = sum(invBranches, (b) => filledOf(b.id, s))
-    const perDay = tanksOf(last7.filter((o) => sizeOf(o.item_name) === s)) / 7
-    return { size: s, filled, perDay, days: perDay > 0 ? filled / perDay : null }
-  })
-  const coverColor = (d) => (d === null ? '#8f9d96' : d < 3 ? C.out : d < 7 ? C.low : C.ok)
-  const coverLabel = (d) => (d === null ? 'no sales' : d < 3 ? 'reorder now' : d < 7 ? 'reorder soon' : 'enough')
-  const COVER_SCALE = 30 // days shown at full bar width
-
-  // filled vs empty per branch
-  const tankRows = invBranches.map((b) => {
-    const filled = sum(sizes, (s) => filledOf(b.id, s))
-    const empty = sum(Object.values(empties[b.id] || {}), Number)
-    return { id: b.id, name: b.name, filled, empty, total: filled + empty }
-  })
-  const tankMax = Math.max(...tankRows.map((t) => t.total), 1)
 
   const years = Array.from({ length: now.getFullYear() - firstYear + 1 }, (_, i) => String(now.getFullYear() - i))
 
@@ -392,7 +330,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       {/* ================= SALES ================= */}
       <SectionTitle hint={`${scopeText} · ${periodText}`}>Sales</SectionTitle>
 
-      <div className="grid gap-4 lg:grid-cols-2">
         {/* revenue vs expenses per day (a month) or per month (a year) */}
         <div className={PANEL}>
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
@@ -438,38 +375,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
           />
         </div>
 
-        {/* sales by hour */}
-        <div className={PANEL}>
-          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className={PANEL_TITLE}>Tanks sold by hour</span>
-            <span className="text-[13px] text-gray-500">
-              {busiest && busiest.avg > 0 ? `busiest at ${hourText(busiest.h)}` : ''}
-            </span>
-          </div>
-          <div className="flex h-40 items-end gap-1 border-b border-gray-200" role="img" aria-label={`Tanks sold a day by hour, ${periodText}`}>
-            {hours.map((x) => (
-              <div key={x.h} className="group relative flex h-full flex-1 items-end justify-center">
-                <div
-                  className="w-full max-w-4 rounded-t-[4px]"
-                  style={{ height: `${(x.avg / hourMax) * 90}%`, minHeight: x.avg > 0 ? 2 : 0, background: C.revenue }}
-                />
-                <Tip>
-                  <div className="font-semibold">{hourText(x.h)} – {hourText(x.h + 1)}</div>
-                  <div>{num(x.avg)} tanks a day</div>
-                </Tip>
-              </div>
-            ))}
-          </div>
-          <div className="mt-1 flex gap-1">
-            {hours.map((x) => (
-              <span key={x.h} className="flex-1 text-center text-[11px] text-gray-500">{x.h % 3 === 0 ? hourText(x.h) : ''}</span>
-            ))}
-          </div>
-          <Legend items={[{ color: C.revenue, label: `Tanks sold a day on average, ${periodText}` }]} />
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* sizes */}
         <div className={PANEL}>
           <span className={`${PANEL_TITLE} mb-2 block`}>Sales by size</span>
@@ -487,26 +393,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
             ))}
           </div>
           <Legend items={[{ color: C.revenue, label: `Revenue, ${periodText}` }, { mark: 'pcs', label: 'tanks sold' }]} />
-        </div>
-
-        {/* payments */}
-        <div className={PANEL}>
-          <span className={`${PANEL_TITLE} mb-2 block`}>How customers paid</span>
-          <StackBar parts={payments} total={payTotal} height="h-4" />
-          <div className="mt-3 grid gap-1.5">
-            {payments.map((p) => (
-              <div key={p.label} className="flex items-center justify-between text-[13px]">
-                <span className="flex items-center gap-1.5 text-gray-700">
-                  <span className="inline-block size-2.5 rounded-[3px]" style={{ background: p.color }} />
-                  {p.label}
-                </span>
-                <span className="tabular-nums text-gray-900">
-                  {peso(p.value)} <span className="text-gray-500">· {payTotal ? Math.round((p.value / payTotal) * 100) : 0}%</span>
-                </span>
-              </div>
-            ))}
-          </div>
-          <Legend items={[{ mark: '%', label: `share of revenue, ${periodText}` }]} />
         </div>
 
         {/* the period by branch */}
@@ -532,7 +418,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       {/* ================= INVENTORY ================= */}
       <SectionTitle hint={`${scopeText} · now`}>Inventory</SectionTitle>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         {/* filled stock per branch and size */}
         <div className={PANEL}>
           <span className={`${PANEL_TITLE} mb-2 block`}>Filled tanks by branch and size</span>
@@ -578,68 +463,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
             ]}
           />
         </div>
-
-        <div className="grid gap-4">
-          {/* days of stock left */}
-          <div className={PANEL}>
-            <span className={`${PANEL_TITLE} mb-2 block`}>Days of stock left</span>
-            <div className="grid gap-2">
-              {cover.map((c) => (
-                <div key={c.size} className="grid gap-1" title={`${c.size}: ${c.filled} filled, about ${num(c.perDay)} sold a day`}>
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-gray-700">{c.size}</span>
-                    <span className="tabular-nums text-gray-900">
-                      {c.days === null ? '—' : `${num(c.days)} days`}{' '}
-                      <span className="font-semibold" style={{ color: coverColor(c.days) }}>· {coverLabel(c.days)}</span>
-                    </span>
-                  </div>
-                  <StackBar
-                    parts={[{ label: 'd', value: c.days === null ? 0 : Math.min(c.days, COVER_SCALE), color: coverColor(c.days) }]}
-                    total={COVER_SCALE}
-                    height="h-1.5"
-                  />
-                </div>
-              ))}
-            </div>
-            <Legend
-              items={[
-                { color: C.out, label: 'under 3 days' },
-                { color: C.low, label: '3–7 days' },
-                { color: C.ok, label: '7+ days' },
-                { mark: '=', label: 'filled now ÷ tanks sold a day (7-day average)' },
-              ]}
-            />
-          </div>
-
-          {/* filled vs empty per branch */}
-          <div className={PANEL}>
-            <span className={`${PANEL_TITLE} mb-2 block`}>Filled vs empty tanks</span>
-            <div className="grid gap-2">
-              {tankRows.map((t) => (
-                <div key={t.id} className="grid gap-1" title={`${t.name}: ${t.filled} filled, ${t.empty} empty`}>
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-gray-700">{t.name}</span>
-                    <span className="tabular-nums text-gray-900">
-                      {num(t.filled)} <span className="text-gray-500">/ {num(t.empty)}</span>
-                    </span>
-                  </div>
-                  <div style={{ width: `${(t.total / tankMax) * 100}%` }}>
-                    <StackBar
-                      parts={[
-                        { label: 'Filled', value: t.filled, color: C.filled },
-                        { label: 'Empty', value: t.empty, color: C.empty },
-                      ]}
-                      total={t.total}
-                      height="h-2"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Legend items={[{ color: C.filled, label: 'Filled' }, { color: C.empty, label: 'Empty (to refill)' }]} />
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
