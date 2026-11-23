@@ -114,8 +114,8 @@ function SizePie({ rows }) {
   }))
   const shown = slices.find((x) => x.size === hover)
   return (
-    <div className="grid items-center gap-4 md:grid-cols-[230px_minmax(0,1fr)]">
-      <svg viewBox="0 0 100 100" className="mx-auto size-[230px] -rotate-90" role="img" aria-label="Share of revenue by cylinder size">
+    <div className="grid items-center gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
+      <svg viewBox="0 0 100 100" className="mx-auto size-[280px] -rotate-90" role="img" aria-label="Share of revenue by cylinder size">
         <circle cx="50" cy="50" r="50" fill="#eef2f0" />
         {slices
           .filter((x) => x.len > 0)
@@ -218,7 +218,7 @@ async function fetchHome(fromKey, toKey) {
 
 // Admin Home analytics, filtered by one branch (or all), a month (or the whole year) and a year:
 //  Sales: the period's numbers vs the same days of the period before, revenue vs expenses for the
-//  last 3 months, sales by size (pie) and by branch.
+//  last 4 months, sales by size (pie) and by branch.
 //  Inventory (always now): filled stock per branch and size, with low / out of stock marked.
 export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const now = new Date()
@@ -242,11 +242,11 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const prevStart = m ? new Date(y, m - 2, 1) : new Date(y - 1, 0, 1)
   const todayStart = daysAgo(0)
   const tomorrow = daysAgo(-1)
-  // the revenue vs expenses chart: the last 3 months up to the chosen month (a whole year: up to
+  // the revenue vs expenses chart: the last 4 months up to the chosen month (a whole year: up to
   // its last month, or this month for this year)
   const lastMonth = m || (y === now.getFullYear() ? now.getMonth() + 1 : 12)
-  const threeStart = new Date(y, lastMonth - 3, 1)
-  const fromKey = dateString(threeStart < prevStart ? threeStart : prevStart)
+  const fourStart = new Date(y, lastMonth - 4, 1)
+  const fromKey = dateString(fourStart < prevStart ? fourStart : prevStart)
   const toKey = dateString(end > tomorrow ? end : tomorrow)
 
   // loads again when the period changes, and on every live change of the tables below
@@ -292,7 +292,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const periodText = m ? `${MONTHS[m - 1]} ${year}` : year
 
   // revenue vs expenses: per day of the month, or per month of the year (up to today)
-  const buckets = [2, 1, 0].map((back) => {
+  const buckets = [3, 2, 1, 0].map((back) => {
     const a = new Date(y, lastMonth - 1 - back, 1)
     const b = new Date(y, lastMonth - back, 1)
     return { key: back, label: `${MONTHS[a.getMonth()].slice(0, 3)} ${a.getFullYear()}`, title: `${MONTHS[a.getMonth()]} ${a.getFullYear()}`, a, b }
@@ -415,12 +415,12 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       {/* ================= SALES ================= */}
       <SectionTitle hint={`${scopeText} · ${periodText}`}>Sales</SectionTitle>
 
-        {/* revenue vs expenses, the last 3 months */}
+        {/* revenue vs expenses, the last 4 months */}
         <div className={PANEL}>
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className={PANEL_TITLE}>Revenue vs expenses, last 3 months</span>
+            <span className={PANEL_TITLE}>Revenue vs expenses, last 4 months</span>
             <span className="text-[13px] tabular-nums text-gray-500">
-              net {peso(sum(trend, (d) => d.revenue - d.expenses))} in 3 months
+              net {peso(sum(trend, (d) => d.revenue - d.expenses))} in 4 months
             </span>
           </div>
           <div key={animKey} className="flex h-52 items-end gap-6 border-b border-gray-200 px-2" role="img" aria-label={`Revenue and expenses per month, ${trend.map((d) => d.title).join(', ')}`}>
