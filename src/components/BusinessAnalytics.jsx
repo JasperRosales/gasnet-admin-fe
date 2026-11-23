@@ -1,8 +1,5 @@
 import { peso } from '../lib/money'
 import { amountOf, isGcash, isUtang } from '../lib/monthly'
-import { expensesOfOrders } from '../lib/expenses'
-import { BRANCHES } from '../lib/branches'
-import { changeOf } from '../lib/compare'
 
 const CARD = 'flex-1 min-w-[340px] rounded-xl border border-(color:--border) bg-white p-4'
 const TH = 'p-2 text-left text-[14px] font-semibold'
@@ -12,7 +9,6 @@ const NUM = 'p-2 text-right text-[14px] tabular-nums'
 
 const sizeKg = (itemName) => Number(((itemName || '').match(/[\d.]+/) || [0])[0])
 const groupKey = (o) => o.group_id || `order-${o.id}`
-const transactionsOf = (list) => new Set(list.map(groupKey)).size
 const revenueOf = (list) => list.reduce((s, o) => s + amountOf(o), 0)
 const pct = (part, whole) => (whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—')
 
@@ -22,69 +18,6 @@ export function Change({ change, label }) {
     <span className={`text-[14px] font-semibold ${change.good ? 'text-brand-pine-light' : 'text-brand-red'}`}>
       {change.text} <span className="font-normal text-gray-500">{label}</span>
     </span>
-  )
-}
-
-// Branch ranking for the period, with the change vs the previous period
-function Leaderboard({ periodAll, prevAll, compareLabel }) {
-  const total = revenueOf(periodAll)
-  const rows = BRANCHES.map((b) => {
-    const sel = periodAll.filter((o) => o.branch === b.id)
-    const revenue = revenueOf(sel)
-    const expenses = expensesOfOrders(sel)
-    const tx = transactionsOf(sel)
-    const prev = prevAll ? revenueOf(prevAll.filter((o) => o.branch === b.id)) : null
-    return { name: b.name, revenue, expenses, net: revenue - expenses, tx, aov: tx ? revenue / tx : 0, prev }
-  })
-    .filter((r) => r.revenue > 0 || r.expenses > 0 || r.prev > 0)
-    .sort((a, b) => b.revenue - a.revenue)
-
-  return (
-    <div className={CARD}>
-      <h3 className="mt-0 mb-2 text-lg">Branch Leaderboard</h3>
-      {rows.length === 0 ? (
-        <p className="text-[14px] text-gray-500">No sales in this period.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className={TH}>#</th>
-                <th className={TH}>Branch</th>
-                <th className={`${TH} text-right`}>Revenue</th>
-                <th className={`${TH} text-right`}>Share</th>
-                <th className={`${TH} text-right`}>Sales</th>
-                <th className={`${TH} text-right`}>Avg sale</th>
-                <th className={`${TH} text-right`}>Expenses</th>
-                <th className={`${TH} text-right`}>Net</th>
-                <th className={`${TH} text-right`}>Margin</th>
-                {prevAll && <th className={`${TH} text-right`}>{compareLabel}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.name}>
-                  <td className={TD}>{i + 1}</td>
-                  <td className={`${TD} font-semibold`}>{r.name}</td>
-                  <td className={NUM}>{peso(r.revenue)}</td>
-                  <td className={NUM}>{pct(r.revenue, total)}</td>
-                  <td className={NUM}>{r.tx}</td>
-                  <td className={NUM}>{peso(r.aov)}</td>
-                  <td className={NUM}>{peso(r.expenses)}</td>
-                  <td className={`${NUM} ${r.net < 0 ? 'text-brand-red' : ''}`}>{peso(r.net)}</td>
-                  <td className={NUM}>{pct(r.net, r.revenue)}</td>
-                  {prevAll && (
-                    <td className={NUM}>
-                      <Change change={changeOf(r.revenue, r.prev)} />
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -221,10 +154,9 @@ function StockCover({ rows, days, stockBySize, sizes }) {
 }
 
 // The business sections of the Analytics page
-export default function BusinessAnalytics({ rows, periodAll, prevAll, showLeaderboard, compareLabel, days, stockBySize, sizes }) {
+export default function BusinessAnalytics({ rows, days, stockBySize, sizes }) {
   return (
     <div className="mb-4 flex flex-col gap-4">
-      {showLeaderboard && <Leaderboard periodAll={periodAll} prevAll={prevAll} compareLabel={compareLabel} />}
       <div className="flex flex-wrap gap-4">
         <StockCover rows={rows} days={days} stockBySize={stockBySize} sizes={sizes} />
         <Customers rows={rows} />

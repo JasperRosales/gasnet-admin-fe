@@ -20,8 +20,6 @@ const PANEL_TITLE = 'text-[15px] font-semibold text-gray-900'
 const ALL = 0 // the branch filter: every branch
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const pad2 = (n) => String(n).padStart(2, '0')
-const compactPeso = (n) =>
-  n >= 1_000_000 ? `₱${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `₱${(n / 1_000).toFixed(1)}k` : `₱${Math.round(n)}`
 
 // chart colors: series (identity) and stock status (state, always shown with a label too)
 // sizes in the pie: a fixed order (validated for color-blind separation), the same size keeps its color
@@ -69,14 +67,6 @@ function Legend({ items }) {
   )
 }
 
-// hover box above a bar
-function Tip({ children }) {
-  return (
-    <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 rounded-lg border border-(color:--border) bg-white px-2.5 py-1.5 text-left text-[13px] whitespace-nowrap shadow group-hover:block">
-      {children}
-    </div>
-  )
-}
 
 // one horizontal bar made of segments (stacked), with a 2px gap between them
 function StackBar({ parts, total, height = 'h-3', delay = 0 }) {
@@ -242,11 +232,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const prevStart = m ? new Date(y, m - 2, 1) : new Date(y - 1, 0, 1)
   const todayStart = daysAgo(0)
   const tomorrow = daysAgo(-1)
-  // the revenue vs expenses chart: the last 4 months up to the chosen month (a whole year: up to
-  // its last month, or this month for this year)
-  const lastMonth = m || (y === now.getFullYear() ? now.getMonth() + 1 : 12)
-  const fourStart = new Date(y, lastMonth - 4, 1)
-  const fromKey = dateString(fourStart < prevStart ? fourStart : prevStart)
+  const fromKey = dateString(prevStart)
   const toKey = dateString(end > tomorrow ? end : tomorrow)
 
   // loads again when the period changes, and on every live change of the tables below
@@ -291,34 +277,39 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const compareLabel = running ? `vs same days last ${unit}` : `vs last ${unit}`
   const periodText = m ? `${MONTHS[m - 1]} ${year}` : year
 
-  // revenue vs expenses: per day of the month, or per month of the year (up to today)
-  const buckets = [3, 2, 1, 0].map((back) => {
-    const a = new Date(y, lastMonth - 1 - back, 1)
-    const b = new Date(y, lastMonth - back, 1)
-    return { key: back, label: `${MONTHS[a.getMonth()].slice(0, 3)} ${a.getFullYear()}`, title: `${MONTHS[a.getMonth()]} ${a.getFullYear()}`, a, b }
-  })
-  const trend = buckets
-    .filter((k) => k.a <= todayStart)
-    .map((k) => {
-      const list = between(k.a, k.b)
-      return { ...k, revenue: revenue(list), expenses: expensesOfOrders(list), sales: salesOf(list) }
-    })
-  const trendMax = Math.max(...trend.map((d) => Math.max(d.revenue, d.expenses)), 1)
-
   // sizes sold in the period
   const sizeRows = sizes.map((s) => {
     const list = period.filter((o) => sizeOf(o.item_name) === s)
     return { size: s, tanks: tanksOf(list), revenue: revenue(list) }
   })
 
-  // the period by branch
-  const branchRows = BRANCHES.filter((b) => branchIds.includes(b.id))
-    .map((b) => {
-      const list = period.filter((o) => o.branch === b.id)
-      return { id: b.id, name: b.name, revenue: revenue(list), sales: salesOf(list) }
-    })
-    .sort((a, b) => b.revenue - a.revenue)
-  const branchMax = Math.max(...branchRows.map((b) => b.revenue), 1)
+  // the branch leaderboard: every branch (so the ranking is complete), the picked one highlighted
+  const inRange = (a, b) => (o) => {
+    const t = new Date(o.accepted_at)
+    return t >= a && t < b
+  }
+  const allPeriod = (orders || []).filter(inRange(start, periodEnd))
+  const allPrev = (orders || []).filter(inRange(prevStart, prevEnd))
+  const allRevenue = revenue(allPeriod)
+  const board = BRANCHES.map((b) => {
+    const list = allPeriod.filter((o) => o.branch === b.id)
+    const rev = revenue(list)
+    const exp = expensesOfOrders(list)
+    const tx = salesOf(list)
+    return {
+      id: b.id,
+      name: b.name,
+      revenue: rev,
+      expenses: exp,
+      net: rev - exp,
+      sales: tx,
+      avg: tx ? rev / tx : 0,
+      share: allRevenue > 0 ? rev / allRevenue : 0,
+      change: changeOf(rev, revenue(allPrev.filter((o) => o.branch === b.id))),
+    }
+  }).sort((a, b) => b.revenue - a.revenue)
+  const boardMax = Math.max(...board.map((b) => b.revenue), 1)
+  const pctText = (x) => `${(x * 100).toFixed(1)}%`
 
   // ---------------- inventory ----------------
   const filledOf = (id, size) =>
@@ -415,60 +406,80 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       {/* ================= SALES ================= */}
       <SectionTitle hint={`${scopeText} · ${periodText}`}>Sales</SectionTitle>
 
-        {/* revenue vs expenses, the last 4 months */}
+        {/* branch leaderboard */}
         <div className={PANEL}>
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className={PANEL_TITLE}>Revenue vs expenses, last 4 months</span>
-            <span className="text-[13px] tabular-nums text-gray-500">
-              net {peso(sum(trend, (d) => d.revenue - d.expenses))} in 4 months
-            </span>
+            <span className={PANEL_TITLE}>Branch leaderboard</span>
+            <span className="text-[13px] text-gray-500">all branches · {periodText} · by revenue</span>
           </div>
-          <div key={animKey} className="flex h-72 items-end gap-8 border-b border-gray-200 px-2" role="img" aria-label={`Revenue and expenses per month, ${trend.map((d) => d.title).join(', ')}`}>
-            {trend.map((d, n) => (
-              <div key={d.key} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-[3px]">
-                {[
-                  { v: d.revenue, c: C.revenue },
-                  { v: d.expenses, c: C.expenses },
-                ].map((bar, i) => (
-                  <div key={i} className="flex h-full w-full max-w-20 flex-col items-center justify-end">
-                    <span className="mb-1 text-[13px] font-semibold tabular-nums text-gray-700">{bar.v > 0 ? compactPeso(bar.v) : ''}</span>
-                    <div
-                      className="chart-bar-v w-full rounded-t-[4px]"
-                      style={{ height: `${(bar.v / trendMax) * 82}%`, minHeight: bar.v > 0 ? 2 : 0, background: bar.c, animationDelay: `${n * 150 + i * 60}ms` }}
-                    />
-                  </div>
-                ))}
-                <Tip>
-                  <div className="font-semibold">{d.title}</div>
-                  <div>Revenue: {peso(d.revenue)}</div>
-                  <div>Expenses: {peso(d.expenses)}</div>
-                  <div className="font-semibold">Net: {peso(d.revenue - d.expenses)}</div>
-                  <div className="text-gray-500">{d.sales} sales</div>
-                </Tip>
-              </div>
-            ))}
-          </div>
-          <div className="mt-1.5 flex gap-8 px-2">
-            {trend.map((d) => (
-              <span key={d.key} className="min-w-0 flex-1 text-center text-[13px]">
-                <span className="block font-semibold text-gray-900">{d.label}</span>
-                <span className={`block tabular-nums ${d.revenue - d.expenses < 0 ? 'text-brand-red' : 'text-gray-500'}`}>
-                  net {peso(d.revenue - d.expenses)}
-                </span>
-              </span>
-            ))}
+          <div className="overflow-x-auto rounded-xl border border-(color:--border)">
+            <table className="w-full min-w-[820px] border-separate border-spacing-0 border-0 bg-white text-[14px]">
+              <thead>
+                <tr className="[&>th]:border-0 [&>th]:bg-brand-pine [&>th]:px-3 [&>th]:py-2.5 [&>th]:text-[13px] [&>th]:font-semibold [&>th]:tracking-wide [&>th]:text-white [&>th]:uppercase">
+                  <th className="w-12 text-center">#</th>
+                  <th className="text-left">Branch</th>
+                  <th className="w-[26%] text-left">Revenue</th>
+                  <th className="text-right">Sales</th>
+                  <th className="text-right">Avg sale</th>
+                  <th className="text-right">Expenses</th>
+                  <th className="text-right">Net</th>
+                  <th className="text-right">Margin</th>
+                  <th className="text-right whitespace-nowrap">vs last {unit}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {board.map((b, i) => {
+                  const mine = onlyBranch && b.id === picked
+                  return (
+                    <tr
+                      key={b.id}
+                      className={`transition-colors [&>td]:border-0 [&>td]:border-b [&>td]:border-gray-100 [&>td]:px-3 [&>td]:py-2.5 hover:[&>td]:bg-[#eef6f3] ${
+                        mine ? '[&>td]:bg-[#e3f1ea]' : i % 2 ? '[&>td]:bg-[#f8faf9]' : '[&>td]:bg-white'
+                      }`}
+                    >
+                      <td className="text-center">
+                        <span
+                          className={`inline-flex size-7 items-center justify-center rounded-full text-[13px] font-bold ${
+                            i === 0 ? 'bg-brand-pine text-white' : i < 3 ? 'bg-[#dcefe8] text-brand-pine' : 'text-gray-500'
+                          }`}
+                        >
+                          {i + 1}
+                        </span>
+                      </td>
+                      <td className={`font-semibold whitespace-nowrap ${mine ? 'text-brand-pine' : 'text-gray-800'}`}>{b.name}</td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span className="w-28 shrink-0 tabular-nums text-gray-900">{peso(b.revenue)}</span>
+                          <div className="min-w-0 flex-1">
+                            <StackBar key={animKey} parts={[{ label: 'r', value: b.revenue, color: C.revenue }]} total={boardMax} height="h-2" delay={i * 60} />
+                          </div>
+                          <span className="w-12 shrink-0 text-right text-[12px] tabular-nums text-gray-500">{pctText(b.share)}</span>
+                        </div>
+                      </td>
+                      <td className="text-right tabular-nums">{b.sales.toLocaleString('en-PH')}</td>
+                      <td className="text-right tabular-nums">{peso(b.avg)}</td>
+                      <td className="text-right tabular-nums">{peso(b.expenses)}</td>
+                      <td className={`text-right font-semibold tabular-nums ${b.net < 0 ? 'text-brand-red' : 'text-gray-900'}`}>{peso(b.net)}</td>
+                      <td className="text-right tabular-nums">{b.revenue > 0 ? pctText(b.net / b.revenue) : '—'}</td>
+                      <td className="text-right">
+                        <Change change={b.change} />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
           <Legend
             items={[
-              { color: C.revenue, label: 'Revenue' },
-              { color: C.expenses, label: 'Expenses' },
-              { mark: '₱k / ₱M', label: 'thousand / million pesos' },
-              { mark: '↑', label: 'hover a month for its sales' },
+              { color: C.revenue, label: 'Revenue (bar = compared with the top branch, % = share of all revenue)' },
+              { mark: 'Net', label: 'revenue minus expenses' },
+              { mark: '▲▼', label: `revenue ${compareLabel}` },
             ]}
           />
         </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4">
         {/* sizes */}
         <div className={PANEL}>
           <span className={`${PANEL_TITLE} mb-2 block`}>Sales by size</span>
@@ -476,24 +487,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
           <Legend items={[{ mark: '%', label: `share of revenue, ${periodText}` }, { mark: 'pcs', label: 'tanks sold' }]} />
         </div>
 
-        {/* the period by branch */}
-        <div className={PANEL}>
-          <span className={`${PANEL_TITLE} mb-2 block`}>By branch</span>
-          <div className="grid gap-2">
-            {branchRows.map((b, i) => (
-              <div key={b.id} className="grid gap-1">
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-gray-700">{b.name}</span>
-                  <span className="tabular-nums text-gray-900">
-                    {peso(b.revenue)} <span className="text-gray-500">· {b.sales}</span>
-                  </span>
-                </div>
-                <StackBar key={animKey} parts={[{ label: 'r', value: b.revenue, color: C.revenue }]} total={branchMax} height="h-1.5" delay={i * 60} />
-              </div>
-            ))}
-          </div>
-          <Legend items={[{ color: C.revenue, label: `Revenue, ${periodText}` }, { mark: '· n', label: 'number of sales' }]} />
-        </div>
       </div>
 
       {/* ================= INVENTORY ================= */}

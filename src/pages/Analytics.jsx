@@ -536,10 +536,6 @@ export default function Analytics() {
 
           <BusinessAnalytics
             rows={rows}
-            periodAll={periodAll}
-            prevAll={prevAll}
-            showLeaderboard={branch === OVERALL}
-            compareLabel={range?.label ?? ''}
             days={periodDays}
             stockBySize={inv.filledBySize}
             sizes={KNOWN_SIZES}
