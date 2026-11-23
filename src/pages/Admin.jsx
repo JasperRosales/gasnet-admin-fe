@@ -35,6 +35,14 @@ const PAGE_PATHS = {
   analytics: '/analytics',
   accounts: '/manage-staff',
 }
+// the three reports share one Reports item in the sidebar, with a tab for each
+const REPORT_TABS = [
+  { key: 'weekly', label: 'Weekly Sales Report' },
+  { key: 'monthly', label: 'Monthly Sales Report' },
+  { key: 'yearend', label: 'Year End Report' },
+]
+const isReport = (key) => REPORT_TABS.some((t) => t.key === key)
+
 const VIEW_PATHS = { inventory: 'inventory', report: 'sales-log', dailyreport: 'daily-report' }
 const branchPath = (id, view = 'inventory') =>
   `/branches/${id === OVERALL ? 'overall' : branchSlug(id)}/${VIEW_PATHS[view]}`
@@ -83,7 +91,9 @@ export default function Admin({ user }) {
 
   // clicking Branches from another page starts at Overall
   const selectTab = (key) => {
-    if (key === 'branches') {
+    if (key === 'reports') {
+      if (!isReport(tab)) setTab('weekly')
+    } else if (key === 'branches') {
       if (tab !== 'branches') go(branchPath(OVERALL))
     } else setTab(key)
   }
@@ -105,9 +115,7 @@ export default function Admin({ user }) {
       ],
     },
     { key: 'tankcount', label: 'Tanks Count', icon: 'box' },
-    { key: 'weekly', label: 'Weekly Sales Report', icon: 'calendar' },
-    { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
-    { key: 'yearend', label: 'Year End Report', icon: 'file' },
+    { key: 'reports', label: 'Reports', icon: 'file' },
     { key: 'customers', label: 'Customer Profile', icon: 'idcard' },
     { key: 'recommendation', label: 'Recommendation', icon: 'chart' },
     { key: 'analytics', label: 'Analytics', icon: 'trending' },
@@ -117,7 +125,7 @@ export default function Admin({ user }) {
   return (
     <StaffLayout
       items={items}
-      active={tab}
+      active={isReport(tab) ? 'reports' : tab}
       onSelect={selectTab}
       activeChild={String(branch)}
       onSelectChild={selectChild}
@@ -176,6 +184,27 @@ export default function Admin({ user }) {
           view={branchView}
           onViewChange={(v) => go(branchPath(branch, v))}
         />
+      )}
+
+      {isReport(tab) && (
+        <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-(color:--border) pb-4">
+          <span className="mr-2 text-xl font-bold text-brand-pine">Reports</span>
+          {REPORT_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              aria-pressed={tab === t.key}
+              onClick={() => setTab(t.key)}
+              className={
+                tab === t.key
+                  ? 'rounded-lg bg-brand-pine px-4 py-2 text-white hover:bg-brand-pine-light'
+                  : 'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
+              }
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       )}
 
       {tab === 'weekly' && <WeeklySales />}
