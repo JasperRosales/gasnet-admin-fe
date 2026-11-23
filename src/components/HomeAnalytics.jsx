@@ -502,45 +502,66 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
         {/* filled stock per branch and size */}
         <div className={PANEL}>
           <span className={`${PANEL_TITLE} mb-2 block`}>Filled tanks by branch and size</span>
-          <div className="overflow-x-auto">
-            <table className="w-full border-separate border-spacing-1 border-0 bg-transparent text-[13px]">
+          <div className="overflow-x-auto rounded-xl border border-(color:--border)">
+            <table className="w-full min-w-[560px] border-separate border-spacing-0 border-0 bg-white text-[14px]">
               <thead>
                 <tr>
-                  <th className="border-0 bg-transparent p-1 text-left font-semibold text-gray-500">Branch</th>
+                  <th className="border-0 bg-brand-pine px-4 py-2.5 text-left text-[13px] font-semibold tracking-wide text-white uppercase">Branch</th>
                   {sizes.map((s) => (
-                    <th key={s} className="border-0 bg-transparent p-1 text-center font-semibold text-gray-500">{s}</th>
+                    <th key={s} className="border-0 bg-brand-pine px-3 py-2.5 text-center text-[13px] font-semibold tracking-wide text-white uppercase">{s}</th>
                   ))}
-                  <th className="border-0 bg-transparent p-1 text-right font-semibold text-gray-500">Total</th>
+                  <th className="border-0 bg-brand-pine px-4 py-2.5 text-right text-[13px] font-semibold tracking-wide text-white uppercase">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {grid.map((b) => (
-                  <tr key={b.id}>
-                    <td className="border-0 p-1 text-gray-700">{b.name}</td>
+                {grid.map((b, row) => (
+                  <tr key={b.id} className={`transition-colors hover:[&>td]:bg-[#eef6f3] ${row % 2 ? '[&>td]:bg-[#f8faf9]' : '[&>td]:bg-white'}`}>
+                    <td className="border-0 border-b border-gray-100 px-4 py-2.5 font-medium text-gray-800">{b.name}</td>
                     {b.cells.map((c) => {
                       const status = statusOf(c.qty, c.size)
                       return (
                         <td
                           key={c.size}
-                          className={`rounded-md border-0 p-1 text-center font-semibold tabular-nums ${STATUS_STYLE[status]}`}
+                          className="border-0 border-b border-gray-100 px-3 py-2.5 text-center tabular-nums"
                           title={`${b.name} ${c.size}: ${c.qty} filled · ${status} (low at ${levels[c.size] ?? DEFAULT_LOW_LEVEL})`}
                         >
-                          {c.qty}
-                          {status !== 'In stock' && <span className="ml-0.5">{status === 'Out of stock' ? '✕' : '!'}</span>}
+                          {status === 'In stock' ? (
+                            <span className="text-gray-800">{c.qty}</span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-semibold ${STATUS_STYLE[status]}`}>
+                              {c.qty}
+                              <span className="text-[11px] font-medium">{status === 'Out of stock' ? 'Out' : 'Low'}</span>
+                            </span>
+                          )}
                         </td>
                       )
                     })}
-                    <td className="border-0 p-1 text-right font-semibold tabular-nums text-gray-900">{num(sum(b.cells, (c) => c.qty))}</td>
+                    <td className="border-0 border-b border-gray-100 px-4 py-2.5 text-right font-semibold tabular-nums text-gray-900">{num(sum(b.cells, (c) => c.qty))}</td>
                   </tr>
                 ))}
               </tbody>
+              {grid.length > 1 && (
+                <tfoot>
+                  <tr className="[&>td]:bg-[#eef6f3]">
+                    <td className="border-0 px-4 py-2.5 font-bold text-brand-pine">All branches</td>
+                    {sizes.map((s) => (
+                      <td key={s} className="border-0 px-3 py-2.5 text-center font-bold tabular-nums text-brand-pine">
+                        {num(sum(grid, (b) => b.cells.find((c) => c.size === s)?.qty || 0))}
+                      </td>
+                    ))}
+                    <td className="border-0 px-4 py-2.5 text-right font-bold tabular-nums text-brand-pine">
+                      {num(sum(grid, (b) => sum(b.cells, (c) => c.qty)))}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
           <Legend
             items={[
-              { color: '#e6f2ec', label: 'In stock' },
-              { mark: '!', markClass: 'text-[#92400e]', label: 'Low stock (at or under the low level)' },
-              { mark: '✕', markClass: 'text-[#991b1b]', label: 'Out of stock' },
+              { mark: 'Low', markClass: 'rounded-full bg-[#fdf0dc] px-1.5 text-[#92400e]', label: 'at or under the low stock level' },
+              { mark: 'Out', markClass: 'rounded-full bg-[#fde4e4] px-1.5 text-[#991b1b]', label: 'out of stock' },
+              { mark: '#', label: 'filled tanks now' },
             ]}
           />
         </div>
