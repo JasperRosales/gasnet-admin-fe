@@ -137,6 +137,8 @@ export default function Admin({ user }) {
           onOpenWaiting={openWaiting}
           onOpen={openNotification}
           onMarkAllRead={notes.markAllRead}
+          onDelete={notes.remove}
+          onDeleteAll={notes.removeAll}
           onClose={() => {
             notes.markAllRead()
             setPanelOpen(false)

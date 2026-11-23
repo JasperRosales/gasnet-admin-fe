@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { peso } from '../lib/money'
 import { branchName } from '../lib/branches'
+import { alertDialog, confirmDialog } from '../lib/dialogs'
 
 // how each kind of notification looks, and which filter it belongs to
 const KINDS = {
@@ -37,41 +38,54 @@ const timeAgo = (iso) => {
     ' ' + t.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
 }
 
-function Row({ n, unread, onOpen }) {
+function Row({ n, unread, onOpen, onDelete }) {
   const k = kindOf(n)
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(n)}
-      className={`flex w-full gap-3 rounded-none border-0 border-b border-(color:--border) px-4 py-3 text-left hover:bg-brand-light ${unread ? 'bg-[#f2faf7]' : 'bg-white'}`}
-    >
-      <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${k.dot}`} aria-hidden="true" />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-2">
-          <span className={`truncate text-[14px] text-gray-900 ${unread ? 'font-bold' : 'font-semibold'}`}>{n.title}</span>
-          {n.amount != null && (
-            <span className="ml-auto shrink-0 text-[13px] font-semibold text-gray-900 tabular-nums">{peso(n.amount)}</span>
-          )}
+    <div className={`group flex border-b border-(color:--border) hover:bg-brand-light ${unread ? 'bg-[#f2faf7]' : 'bg-white'}`}>
+      <button
+        type="button"
+        onClick={() => onOpen(n)}
+        className="flex min-w-0 flex-1 gap-3 rounded-none border-0 bg-transparent py-3 pr-1 pl-4 text-left"
+      >
+        <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${k.dot}`} aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-2">
+            <span className={`truncate text-[14px] text-gray-900 ${unread ? 'font-bold' : 'font-semibold'}`}>{n.title}</span>
+            {n.amount != null && (
+              <span className="ml-auto shrink-0 text-[13px] font-semibold text-gray-900 tabular-nums">{peso(n.amount)}</span>
+            )}
+          </span>
+          {n.body && <span className="mt-0.5 block text-[13px] break-words text-gray-700">{n.body}</span>}
+          <span className="mt-0.5 block text-[12px] text-gray-500">
+            {k.label}
+            {n.actor_name ? ` · ${n.actor_name}` : ''} · {timeAgo(n.created_at)}
+          </span>
         </span>
-        {n.body && <span className="mt-0.5 block text-[13px] break-words text-gray-700">{n.body}</span>}
-        <span className="mt-0.5 block text-[12px] text-gray-500">
-          {k.label}
-          {n.actor_name ? ` · ${n.actor_name}` : ''} · {timeAgo(n.created_at)}
-        </span>
-      </span>
-    </button>
+      </button>
+      <button
+        type="button"
+        className="h-8 shrink-0 self-start rounded-md bg-transparent px-3 pt-2 text-[18px] leading-none text-gray-400 hover:text-brand-red"
+        aria-label="Delete notification"
+        title="Delete"
+        onClick={() => onDelete(n)}
+      >
+        ×
+      </button>
+    </div>
   )
 }
 
 // The panel under the bell: website orders waiting, then the notifications (newest first)
-export function NotificationPanel({ items, seenAt, waiting, onOpenWaiting, onOpen, onMarkAllRead, onClose }) {
+export function NotificationPanel({ items, seenAt, waiting, onOpenWaiting, onOpen, onMarkAllRead, onDelete, onDeleteAll, onClose }) {
   const [filter, setFilter] = useState('all')
   const box = useRef(null)
 
   // a click outside (not on the bell) or Esc closes the panel
   useEffect(() => {
     const onDown = (e) => {
-      if (box.current && !box.current.contains(e.target) && !e.target.closest?.('[data-bell]')) onClose()
+      if (!box.current || box.current.contains(e.target) || e.target.closest?.('[data-bell]')) return
+      if (e.target.closest?.('[aria-modal="true"]')) return // a confirm box opened from the panel
+      onClose()
     }
     const onKey = (e) => e.key === 'Escape' && onClose()
     document.addEventListener('mousedown', onDown)
@@ -85,6 +99,15 @@ export function NotificationPanel({ items, seenAt, waiting, onOpenWaiting, onOpe
   const shown = items.filter((n) => filter === 'all' || kindOf(n).group === filter)
   const isUnread = (n) => !seenAt || n.created_at > seenAt
 
+  const deleteOne = (n) => onDelete(n.id).catch((e) => alertDialog(e.message, 'Not deleted'))
+  const deleteAll = async () => {
+    const f = FILTERS.find((x) => x.key === filter)
+    const what = filter === 'all' ? 'all notifications' : `all "${f.label}" notifications`
+    if (!(await confirmDialog(`Delete ${what}? This cannot be undone.`))) return
+    const kinds = filter === 'all' ? null : Object.keys(KINDS).filter((k) => KINDS[k].group === filter)
+    onDeleteAll(kinds).catch((e) => alertDialog(e.message, 'Not deleted'))
+  }
+
   return (
     <div
       ref={box}
@@ -94,13 +117,23 @@ export function NotificationPanel({ items, seenAt, waiting, onOpenWaiting, onOpe
     >
       <div className="flex items-center justify-between gap-2 border-b border-(color:--border) px-4 py-3">
         <h2 className="m-0 text-lg">Notifications</h2>
-        <button
-          type="button"
-          className="rounded-lg border border-(color:--border) bg-white px-3 py-1 text-[13px] text-brand-pine hover:bg-brand-light"
-          onClick={onMarkAllRead}
-        >
-          Mark all as read
-        </button>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            className="rounded-lg border border-(color:--border) bg-white px-3 py-1 text-[13px] text-brand-pine hover:bg-brand-light"
+            onClick={onMarkAllRead}
+          >
+            Mark all as read
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-(color:--border) bg-white px-3 py-1 text-[13px] text-brand-red hover:bg-red-50 disabled:opacity-50"
+            onClick={deleteAll}
+            disabled={shown.length === 0}
+          >
+            Delete all
+          </button>
+        </div>
       </div>
 
       {waiting > 0 && (
@@ -131,7 +164,7 @@ export function NotificationPanel({ items, seenAt, waiting, onOpenWaiting, onOpe
         {shown.length === 0 ? (
           <p className="m-0 px-4 py-8 text-center text-[14px] text-gray-500">No notifications yet.</p>
         ) : (
-          shown.map((n) => <Row key={n.id} n={n} unread={isUnread(n)} onOpen={onOpen} />)
+          shown.map((n) => <Row key={n.id} n={n} unread={isUnread(n)} onOpen={onOpen} onDelete={deleteOne} />)
         )}
       </div>
       <p className="m-0 border-t border-(color:--border) px-4 py-2 text-[12px] text-gray-500">
