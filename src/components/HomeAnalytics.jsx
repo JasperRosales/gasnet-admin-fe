@@ -114,8 +114,8 @@ function SizePie({ rows }) {
   }))
   const shown = slices.find((x) => x.size === hover)
   return (
-    <div className="grid items-center gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
-      <svg viewBox="0 0 100 100" className="mx-auto size-[280px] -rotate-90" role="img" aria-label="Share of revenue by cylinder size">
+    <div className="grid items-center gap-4 md:grid-cols-[230px_minmax(0,1fr)]">
+      <svg viewBox="0 0 100 100" className="mx-auto size-[230px] -rotate-90" role="img" aria-label="Share of revenue by cylinder size">
         <circle cx="50" cy="50" r="50" fill="#eef2f0" />
         {slices
           .filter((x) => x.len > 0)
@@ -423,15 +423,15 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               net {peso(sum(trend, (d) => d.revenue - d.expenses))} in 4 months
             </span>
           </div>
-          <div key={animKey} className="flex h-52 items-end gap-6 border-b border-gray-200 px-2" role="img" aria-label={`Revenue and expenses per month, ${trend.map((d) => d.title).join(', ')}`}>
+          <div key={animKey} className="flex h-72 items-end gap-8 border-b border-gray-200 px-2" role="img" aria-label={`Revenue and expenses per month, ${trend.map((d) => d.title).join(', ')}`}>
             {trend.map((d, n) => (
               <div key={d.key} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-[3px]">
                 {[
                   { v: d.revenue, c: C.revenue },
                   { v: d.expenses, c: C.expenses },
                 ].map((bar, i) => (
-                  <div key={i} className="flex h-full w-full max-w-16 flex-col items-center justify-end">
-                    <span className="mb-1 text-[12px] tabular-nums text-gray-700">{bar.v > 0 ? compactPeso(bar.v) : ''}</span>
+                  <div key={i} className="flex h-full w-full max-w-20 flex-col items-center justify-end">
+                    <span className="mb-1 text-[13px] font-semibold tabular-nums text-gray-700">{bar.v > 0 ? compactPeso(bar.v) : ''}</span>
                     <div
                       className="chart-bar-v w-full rounded-t-[4px]"
                       style={{ height: `${(bar.v / trendMax) * 82}%`, minHeight: bar.v > 0 ? 2 : 0, background: bar.c, animationDelay: `${n * 150 + i * 60}ms` }}
@@ -448,7 +448,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               </div>
             ))}
           </div>
-          <div className="mt-1.5 flex gap-6 px-2">
+          <div className="mt-1.5 flex gap-8 px-2">
             {trend.map((d) => (
               <span key={d.key} className="min-w-0 flex-1 text-center text-[13px]">
                 <span className="block font-semibold text-gray-900">{d.label}</span>
