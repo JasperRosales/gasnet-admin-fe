@@ -8,7 +8,6 @@ import useLiveTables from '../lib/useLiveTables'
 import HomeAnalytics from '../components/HomeAnalytics'
 
 const GREEN = '#0b4436'
-const RED = '#d4111b'
 const CARD = 'rounded-2xl border border-(color:--border) bg-white shadow-sm'
 const MINT = 'bg-[#eef6f3]'
 
@@ -40,25 +39,13 @@ function Icon({ name, className = 'size-5', strokeWidth = 2 }) {
   )
 }
 
-// the flame of the logo (green with a red inside)
-function Flame({ className = 'h-16 w-auto' }) {
-  return (
-    <svg className={className} viewBox="0 0 40 56" aria-hidden="true">
-      <path
-        d="M20 2C24 12 36 20 36 34a16 16 0 0 1-32 0C4 24 11 18 13 9c3 5 2 10 5 13 3-6 3-13 2-20z"
-        fill={GREEN}
-      />
-      <path d="M21 26c3 5 7 8 7 14a8 8 0 0 1-15 3c3 1 6-1 6-5 0-5 2-8 2-12z" fill={RED} />
-    </svg>
-  )
-}
 
-// Admin Home: quick actions (Branches, Recommendation, Reports), restock recommendations, Tanks Count
-// and report shortcuts, the current prices of a branch, and the analytics.
+// Admin Home: quick actions (Tanks Count, Branches, Recommendation, Reports), the current prices of
+// a branch, and the analytics.
 // Everything is kept small enough to fit on one screen.
 export default function AdminHome({
   adminBranch, // the branch whose price the admin can update (Caloocan)
-  onOpen, // onOpen('recommendation' | 'reports' | 'analytics' | 'tankcount' | 'weekly' | 'monthly' | 'yearend')
+  onOpen, // onOpen('tankcount' | 'recommendation' | 'reports' | 'analytics')
   onOpenBranch, // onOpenBranch(branchId)
   onUpdatePrice,
 }) {
@@ -97,11 +84,6 @@ export default function AdminHome({
 
   const shown = (value) => (value === null || value === undefined ? '—' : value.toLocaleString('en-PH'))
 
-  const tiles = [
-    { key: 'weekly', label: 'Weekly Sales Report', icon: 'chart' },
-    { key: 'monthly', label: 'Monthly Sales Report', icon: 'chart' },
-    { key: 'yearend', label: 'Year End Report', icon: 'calendar' },
-  ]
 
   // the Branches quick action: a drop-down of Overall and the branches
   const [branchMenu, setBranchMenu] = useState(false)
@@ -139,8 +121,34 @@ export default function AdminHome({
             </div>
           </div>
 
-          {/* quick actions: Branches (a drop-down), Recommendation, Reports */}
-          <div className={`${CARD} grid gap-3 p-3 sm:grid-cols-3`}>
+          {/* quick actions: Tanks Count, Branches (a drop-down), Recommendation, Reports */}
+          <div className={`${CARD} grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr]`}>
+            {/* Tanks Count: the total under the name, Revolving and Borrowed on the right */}
+            <button
+              type="button"
+              onClick={() => onOpen('tankcount')}
+              className={`${TILE} items-center gap-3 text-left`}
+              style={{ background: GREEN }}
+            >
+              <span className="flex flex-1 flex-col items-center gap-1.5 text-center">
+                <span className="flex size-11 items-center justify-center rounded-full bg-white" style={{ color: GREEN }}>
+                  <Icon name="tank" className="size-6" />
+                </span>
+                <span className="text-[15px] leading-tight font-semibold">Tanks Count</span>
+                <span className="text-[22px] leading-none font-bold">{shown(tankNumbers.total)}</span>
+              </span>
+              <span className="grid gap-2 border-l border-white/25 pl-3 text-[13px] text-white/80">
+                <span>
+                  Revolving:
+                  <span className="block text-[16px] font-bold text-white">{shown(tankNumbers.revolving)}</span>
+                </span>
+                <span>
+                  Borrowed:
+                  <span className="block text-[16px] font-bold text-white">{shown(tankNumbers.borrowed)}</span>
+                </span>
+              </span>
+            </button>
+
             <div ref={menuRef} className="relative grid">
               <button
                 type="button"
@@ -206,68 +214,6 @@ export default function AdminHome({
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => onOpen('recommendation')}
-            className={`${MINT} flex items-center gap-4 rounded-2xl border border-(color:--border) px-4 py-3 text-left shadow-sm hover:opacity-100 hover:shadow-md`}
-            style={{ color: GREEN }}
-          >
-            <Flame className="h-11 w-auto shrink-0" />
-            <span className="h-10 w-px shrink-0 bg-(--border)" />
-            <span className="flex-1">
-              <span className="block text-[17px] font-bold">Restock Recommendations</span>
-              <span className="block text-[14px] text-gray-500">
-                Check the latest stock levels and recommended items for each branch.
-              </span>
-            </span>
-            <Icon name="arrow" />
-          </button>
-
-          <div className={`${CARD} grid gap-3 p-3 sm:grid-cols-[1.4fr_1fr_1fr_1fr]`}>
-            {/* Tanks Count: the total under the name, Revolving and Borrowed on the right */}
-            <button
-              type="button"
-              onClick={() => onOpen('tankcount')}
-              className={`${TILE} items-center gap-3 text-left`}
-              style={{ background: GREEN }}
-            >
-              <span className="flex flex-1 flex-col items-center gap-1.5 text-center">
-                <span className="flex size-11 items-center justify-center rounded-full bg-white" style={{ color: GREEN }}>
-                  <Icon name="tank" className="size-6" />
-                </span>
-                <span className="text-[15px] leading-tight font-semibold">Tanks Count</span>
-                <span className="text-[22px] leading-none font-bold">{shown(tankNumbers.total)}</span>
-              </span>
-              <span className="grid gap-2 border-l border-white/25 pl-3 text-[13px] text-white/80">
-                <span>
-                  Revolving:
-                  <span className="block text-[16px] font-bold text-white">{shown(tankNumbers.revolving)}</span>
-                </span>
-                <span>
-                  Borrowed:
-                  <span className="block text-[16px] font-bold text-white">{shown(tankNumbers.borrowed)}</span>
-                </span>
-              </span>
-            </button>
-
-            {tiles.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => onOpen(t.key)}
-                className={`${TILE} flex-col items-center justify-center gap-1.5 text-center`}
-                style={{ background: GREEN }}
-              >
-                <span className="flex size-11 items-center justify-center rounded-full bg-white" style={{ color: GREEN }}>
-                  <Icon name={t.icon} className="size-6" />
-                </span>
-                <span className="text-[15px] leading-tight font-semibold">{t.label}</span>
-                <span className="flex size-6 items-center justify-center rounded-full bg-[#1f7a64]">
-                  <Icon name="arrow" className="size-3.5" />
-                </span>
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* ---- right: current prices of a branch ---- */}

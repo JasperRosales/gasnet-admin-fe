@@ -13,6 +13,11 @@ const TABLE =
   'w-full min-w-[760px] border-collapse text-[14px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2 [&_th]:py-1.5 [&_td]:text-center [&_th]:text-center'
 const BRANCH_CELL = '!text-left font-semibold uppercase'
 const TOTAL_ROW = 'bg-[#eef6f3] font-bold'
+// the header colors of each sheet: Revolving green, Borrowed red
+const HEADS = {
+  revolving: { top: 'bg-brand-pine text-white', sub: 'bg-[#dcefe8] text-brand-pine' },
+  borrowed: { top: 'bg-brand-red text-white', sub: 'bg-[#fbe3e3] text-brand-red' },
+}
 
 // "September 29, 2026"
 const longDate = (ymd) => {
@@ -79,17 +84,17 @@ export default function TankRevolving({ branch: ownBranch }) {
   const both = (table, list, size) =>
     sum([total(table, list, size, 'f'), total(table, list, size, 'e')])
 
-  const sizeHeads = () => (
+  const sizeHeads = (sheet) => (
     <>
       <tr>
-        <th rowSpan={2} className={`${BRANCH_CELL} w-48`}>Branch</th>
+        <th rowSpan={2} className={`${BRANCH_CELL} ${HEADS[sheet].top} w-48`}>Branch</th>
         {sizes.map((s) => (
-          <th key={s} colSpan={2}>{s}</th>
+          <th key={s} colSpan={2} className={`${HEADS[sheet].top} tracking-wide`}>{s}</th>
         ))}
       </tr>
       <tr>
         {sizes.map((s) => (
-          <FE key={s} />
+          <FE key={s} className={HEADS[sheet].sub} />
         ))}
       </tr>
     </>
@@ -140,7 +145,7 @@ export default function TankRevolving({ branch: ownBranch }) {
       </h2>
       <div className={`${CARD} mb-1`}>
         <table className={TABLE}>
-          <thead>{sizeHeads()}</thead>
+          <thead>{sizeHeads('revolving')}</thead>
           <tbody>
             {branchRows('revolving', revolvingBranches)}
             {totalRow('revolving', revolvingBranches)}
@@ -163,7 +168,7 @@ export default function TankRevolving({ branch: ownBranch }) {
       </h2>
       <div className={CARD}>
         <table className={TABLE}>
-          <thead>{sizeHeads()}</thead>
+          <thead>{sizeHeads('borrowed')}</thead>
           <tbody>
             {borrowedBranches.length > 0 ? (
               branchRows('borrowed', borrowedBranches)
@@ -194,11 +199,11 @@ export default function TankRevolving({ branch: ownBranch }) {
 }
 
 // the F and E headings under a size
-function FE() {
+function FE({ className }) {
   return (
     <>
-      <th className="w-12 text-[12px] font-medium text-blue-700">F</th>
-      <th className="w-12 text-[12px] font-medium text-blue-700">E</th>
+      <th className={`w-12 text-[12px] font-semibold ${className}`}>F</th>
+      <th className={`w-12 text-[12px] font-semibold ${className}`}>E</th>
     </>
   )
 }
