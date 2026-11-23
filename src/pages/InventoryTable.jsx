@@ -60,9 +60,17 @@ const encodeRemarks = ({ lines, totals = {}, old }) => {
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
-const CELL = 'border border-(color:--border) px-1.5 py-1 text-center text-[14px] whitespace-nowrap'
-const BODY_CELL = 'border border-(color:--border) px-1.5 py-0.5 text-center text-[14px] leading-tight'
-const BODY_LABEL = 'border border-(color:--border) px-3 py-0.5 text-left text-[14px] uppercase'
+const CELL = 'border border-(color:--border) px-2 py-2 text-center text-[14px] whitespace-nowrap'
+const BODY_CELL = 'border border-(color:--border) px-2 py-2 text-center text-[14px] leading-tight'
+const BODY_LABEL = 'border border-(color:--border) bg-[#eef5f2] px-4 py-2 text-left text-[14px] uppercase text-brand-pine'
+// a white gap before each group (FILLED, EMPTIES, REMARKS) so they do not sit too close
+const GAP = 'border-l-[10px] border-l-white'
+// group colors: FILLED green, EMPTIES amber, REMARKS grey
+const FILLED_HEAD = 'bg-[#dcefe8] text-brand-pine'
+const FILLED_CELL = 'bg-[#f6fbf9]'
+const EMPTIES_HEAD = 'bg-[#fbecd9] text-[#8a4b0f]'
+const EMPTIES_CELL = 'bg-[#fffaf3]'
+const REMARKS_HEAD = 'bg-gray-100 text-gray-700'
 const NUMBER_INPUT = 'box-border h-6 w-full max-w-20 min-w-0 rounded-md px-1 py-0 text-center text-[14px]'
 
 // "2.7kg" -> "2.7 KG"
@@ -586,18 +594,18 @@ export default function InventoryTable({
 
   // one row of the table: a label, then the FILLED cells, then the EMPTIES cells
   const bodyRow = (label, filled, empties, options = {}) => (
-    <tr key={label} className={options.height ?? 'h-8'}>
+    <tr key={label} className={options.height ?? 'h-11'}>
       <th scope="row" className={`${BODY_LABEL} ${options.bold ? 'font-bold' : 'font-medium'}`}>
         {label}
       </th>
-      {rows.map((r) => (
-        <td key={r.size} className={BODY_CELL}>{filled(r)}</td>
+      {rows.map((r, i) => (
+        <td key={r.size} className={`${BODY_CELL} ${FILLED_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''}`}>{filled(r)}</td>
       ))}
       {SHOW_EMPTIES &&
-        rows.map((r) => {
+        rows.map((r, i) => {
           const e = emptyBySize[r.size]
           return (
-            <td key={`empty-${r.size}`} className={`${BODY_CELL} ${e ? '' : 'text-gray-400'}`}>
+            <td key={`empty-${r.size}`} className={`${BODY_CELL} ${EMPTIES_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''} ${e ? '' : 'text-gray-400'}`}>
               {e ? empties(e) : '-'}
             </td>
           )
@@ -606,7 +614,7 @@ export default function InventoryTable({
         // absolute: the remark lines fill the height of the table and never make it taller
         <td
           rowSpan={7}
-          className="relative border border-(color:--border) p-0 text-left align-top"
+          className={`relative border border-(color:--border) ${GAP} p-0 text-left align-top`}
           data-export={remarksExport}
         >
           {/* the remark lines: label, total (filled in later), note.
@@ -621,10 +629,10 @@ export default function InventoryTable({
               const under = i < REMARK_LINES.length - 1 || shownRemarks.old ? 'border-b' : ''
               return (
               <Fragment key={line.key}>
-                <div className={`flex items-center ${under} border-(color:--border) px-3 py-0.5 font-medium uppercase`}>
+                <div className={`flex items-center ${under} border-(color:--border) bg-gray-50 px-4 py-1.5 font-medium uppercase text-gray-700`}>
                   {i + 1}. {line.label}
                 </div>
-                <div className={`flex items-center justify-center ${under} border-l border-(color:--border) px-2 py-0.5 font-semibold`}>
+                <div className={`flex items-center justify-center ${under} border-l border-(color:--border) px-2 py-1.5 font-semibold`}>
                   {/* the total of the line, typed by the staff */}
                   {editing ? (
                     <input
@@ -645,7 +653,7 @@ export default function InventoryTable({
                     shownRemarks.totals[line.key] || ''
                   )}
                 </div>
-                <div className={`${under} min-h-0 border-l border-(color:--border) px-1.5 py-0.5 [overflow-wrap:anywhere]`}>
+                <div className={`${under} min-h-0 border-l border-(color:--border) px-2 py-1.5 [overflow-wrap:anywhere]`}>
                   {/* a long note scrolls inside this cell */}
                   {editing ? (
                     <textarea
@@ -739,24 +747,24 @@ export default function InventoryTable({
           <table ref={tableRef} className="w-full min-w-[980px] table-fixed">
             <thead>
               <tr>
-                <th rowSpan={3} className={`${CELL} w-36 text-left align-top`}>
+                <th rowSpan={3} className={`${CELL} w-40 bg-[#eef5f2] px-4 text-left align-top text-brand-pine`}>
                   DATE:
                   <div className="font-normal">{shownDate}</div>
                 </th>
-                <th colSpan={columns} className={CELL}>STOCK INVENTORY</th>
-                <th rowSpan={3} className={`${CELL} w-[30%]`}>REMARKS</th>
+                <th colSpan={columns} className={`${CELL} ${GAP} bg-brand-pine tracking-wide text-white`}>STOCK INVENTORY</th>
+                <th rowSpan={3} className={`${CELL} ${GAP} ${REMARKS_HEAD} w-[30%] tracking-wide`}>REMARKS</th>
               </tr>
               <tr>
-                <th colSpan={sizeCount} className={CELL}>FILLED</th>
-                {SHOW_EMPTIES && <th colSpan={sizeCount} className={CELL}>EMPTIES</th>}
+                <th colSpan={sizeCount} className={`${CELL} ${GAP} ${FILLED_HEAD} tracking-wide`}>FILLED</th>
+                {SHOW_EMPTIES && <th colSpan={sizeCount} className={`${CELL} ${GAP} ${EMPTIES_HEAD} tracking-wide`}>EMPTIES</th>}
               </tr>
               <tr>
-                {rows.map((r) => (
-                  <th key={`filled-${r.size}`} className={CELL}>{sizeLabel(r.size)}</th>
+                {rows.map((r, i) => (
+                  <th key={`filled-${r.size}`} className={`${CELL} ${FILLED_HEAD} ${i === 0 ? GAP : ''}`}>{sizeLabel(r.size)}</th>
                 ))}
                 {SHOW_EMPTIES &&
-                  rows.map((r) => (
-                    <th key={`empties-${r.size}`} className={CELL}>{sizeLabel(r.size)}</th>
+                  rows.map((r, i) => (
+                    <th key={`empties-${r.size}`} className={`${CELL} ${EMPTIES_HEAD} ${i === 0 ? GAP : ''}`}>{sizeLabel(r.size)}</th>
                   ))}
               </tr>
             </thead>
@@ -824,7 +832,7 @@ export default function InventoryTable({
                     </span>
                   )
                 },
-                { height: 'h-20' }
+                { height: 'h-24' }
               )}
 
               {bodyRow(
@@ -847,7 +855,7 @@ export default function InventoryTable({
                   ),
                 // EMPTIES: one empty for each FILLED sale, + borrowed tanks returned
                 (e) => (editing ? liveEmpties(e).sales : (Number(e.sales) || 0) + emptiesSaved(e).borrowed),
-                { height: 'h-11' }
+                { height: 'h-12' }
               )}
 
               {/* Ending Inventory shows the same number as the Actual Count (Ending - Variance + Buy):
@@ -950,7 +958,7 @@ export default function InventoryTable({
                     </span>
                   )
                 },
-                { height: 'h-24' }
+                { height: 'h-28' }
               )}
             </tbody>
           </table>

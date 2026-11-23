@@ -30,6 +30,24 @@ const compactPeso = (n) =>
 
 const sizeOf = (o) => (o.item_name || '').replace('LPG Cylinder ', '')
 
+// a legend row: a colored swatch (or a text marker) and what it means
+function Legend({ items }) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-100 pt-2 text-[12px] text-gray-500">
+      {items.map((it) => (
+        <span key={it.label} className="flex items-center gap-1.5">
+          {it.color ? (
+            <span className="inline-block size-2.5 rounded-[3px]" style={{ background: it.color }} />
+          ) : (
+            <span className={`font-semibold ${it.markClass || 'text-gray-700'}`}>{it.mark}</span>
+          )}
+          {it.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 // Admin Home analytics: today vs yesterday, the last 7 days of revenue, and today by branch
 // (or, for one branch, today by cylinder size).
 // branch: the branch picked on the home page; the filter shows All branches or that branch.
@@ -137,8 +155,8 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               type="button"
               aria-pressed={onlyBranch === f.only}
               onClick={() => setOnlyBranch(f.only)}
-              className={`rounded-md px-3 py-1 ${onlyBranch === f.only ? 'text-white' : 'hover:bg-brand-light'}`}
-              style={onlyBranch === f.only ? { background: GREEN } : { color: GREEN }}
+              className="min-h-0 rounded-md px-3 py-1 text-[14px] text-white"
+              style={{ background: onlyBranch === f.only ? GREEN : '#5d8f80' }}
             >
               {f.label}
             </button>
@@ -147,8 +165,8 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
         <button
           type="button"
           onClick={onOpenAnalytics}
-          className="rounded-lg border border-(color:--border) px-3 py-1.5 text-[14px] font-semibold hover:bg-brand-light"
-          style={{ color: GREEN }}
+          className="min-h-0 rounded-lg px-3 py-1.5 text-[14px] font-semibold text-white"
+          style={{ background: GREEN }}
         >
           Full analytics →
         </button>
@@ -167,6 +185,14 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
           </div>
         ))}
       </div>
+      <Legend
+        items={[
+          { mark: '▲', markClass: 'text-brand-pine-light', label: 'better than yesterday' },
+          { mark: '▼', markClass: 'text-brand-red', label: 'worse than yesterday' },
+          { mark: 'new', label: 'no sales yesterday' },
+          { mark: 'Net', label: 'revenue minus expenses' },
+        ]}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         {/* last 7 days of revenue: one series, so no legend; hover a bar for its numbers */}
@@ -201,6 +227,13 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               </span>
             ))}
           </div>
+          <Legend
+            items={[
+              { color: GREEN, label: `Revenue per day${onlyBranch ? ` · ${branchName(branch)}` : ' · all branches'}` },
+              { mark: '₱k', label: 'thousand pesos' },
+              { mark: '▲▼', label: 'vs the 7 days before' },
+            ]}
+          />
         </div>
 
         {/* today by branch, highest revenue first */}
@@ -224,6 +257,12 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               </div>
             ))}
           </div>
+          <Legend
+            items={[
+              { color: GREEN, label: 'Revenue today (bar = share of the top one)' },
+              onlyBranch ? { mark: 'pcs', label: 'cylinders sold' } : { mark: '· n', label: 'number of sales' },
+            ]}
+          />
         </div>
       </div>
     </div>
