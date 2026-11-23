@@ -86,7 +86,7 @@ const AnalyticsCharts = lazy(() => import('../components/AnalyticsCharts'))
 // a placeholder of the same size until the charts are near the screen and loaded
 const ChartsPlaceholder = () => (
   <div className="mb-8 flex flex-col gap-4">
-    {[350, 430].map((h) => (
+    {[380].map((h) => (
       <div key={h} className="flex flex-wrap gap-4">
         {[0, 1].map((i) => (
           <div key={i} className={`${CARD} animate-pulse bg-gray-50`} style={{ height: h }} />
@@ -306,13 +306,7 @@ export default function Analytics() {
     }
   })
 
-  // pie: filled vs empty cylinders (current inventory), with per-size breakdown
-  const inventoryPie = [
-    { name: 'Filled', value: inv.filled, bySize: inv.filledBySize },
-    { name: 'Empty', value: inv.empty, bySize: inv.emptyBySize },
-  ].filter((d) => d.value > 0)
-
-  // pie: orders split by source / customer type / delivery status
+  // orders split by source / customer type / delivery status (sent to the AI insights)
   // each slice carries its order count, revenue and weight
   const splitOf = (predicate) => {
     const sel = rows.filter(predicate)
@@ -550,16 +544,7 @@ export default function Analytics() {
             />
           </div>
 
-          <LazyCharts
-            trendTitle={trendTitle}
-            trendChart={trendChart}
-            inv={inv}
-            inventoryPie={inventoryPie}
-            orderSplit={orderSplit}
-            orderCount={rows.length}
-            productChart={productChart}
-            sizes={KNOWN_SIZES}
-          />
+          <LazyCharts trendTitle={trendTitle} trendChart={trendChart} productChart={productChart} />
         </div>
       )}
     </div>
