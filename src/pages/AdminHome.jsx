@@ -5,6 +5,7 @@ import { loadTankCounts, tankTotals } from '../lib/tankCount'
 import { peso } from '../lib/money'
 import { lpgPrices, branchPrices } from '../lib/prices'
 import useLiveTables from '../lib/useLiveTables'
+import HomeAnalytics from '../components/HomeAnalytics'
 
 const GREEN = '#0b4436'
 const RED = '#d4111b'
@@ -237,6 +238,8 @@ export default function AdminHome({
           )}
         </div>
       </div>
+
+      <HomeAnalytics branch={priceBranch} onOpenAnalytics={() => onOpen('analytics')} />
 
       {/* ---- branches ---- */}
       <div className={`${CARD} p-4`}>
