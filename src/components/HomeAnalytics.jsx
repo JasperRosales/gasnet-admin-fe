@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { cachedQuery } from '../lib/lazyData'
 import { amountOf, isGcash, isUtang } from '../lib/monthly'
 import { expensesOfOrders } from '../lib/expenses'
 import { BRANCHES, branchName } from '../lib/branches'
-import { dateString, localDateString, todayString } from '../lib/dateUtils'
+import { dateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { changeOf } from '../lib/compare'
 import { lpgPrices } from '../lib/prices'
@@ -18,12 +18,12 @@ const CARD = 'rounded-2xl border border-(color:--border) bg-white shadow-sm'
 const PANEL = 'rounded-xl border border-(color:--border) p-3'
 const PANEL_TITLE = 'text-[15px] font-semibold text-gray-900'
 const ALL = 0 // the branch filter: every branch
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const pad2 = (n) => String(n).padStart(2, '0')
 
 // chart colors: series (identity) and stock status (state, always shown with a label too)
 const C = {
   revenue: '#0b4436',
-  usual: '#4a5751',
   expenses: '#d97706',
   cash: '#0b4436',
   gcash: '#2f6fb5',
@@ -103,13 +103,68 @@ function SectionTitle({ children, hint }) {
   )
 }
 
-// Admin Home analytics, for all branches or the branch picked on the home page:
-//  Sales: today's numbers, revenue vs expenses (7 days), sales by hour, sizes, payments, branches.
-//  Inventory: filled stock per branch and size (with low / out status), days of stock left,
-//  filled vs empty tanks per branch.
-// Loads the accepted orders of the last 14 days, the current stock and today's empties.
+const EMPTY = { orders: null, stock: [], empties: {}, sizes: [], levels: {}, firstYear: null, message: '' }
+
+// everything the analytics need: the accepted orders in [fromKey, toKey), the current stock,
+// today's empties, the sizes with their low stock levels, and the year of the oldest order.
+// stock: [{ branch, item_name, quantity }], empties: { branch: { size: count } }
+async function fetchHome(fromKey, toKey) {
+  const day = todayString()
+  const [ordersResult, stockResult, pricesResult, emptiesResults, firstResult] = await Promise.all([
+    cachedQuery(`home:orders:${fromKey}:${toKey}`, 60 * 1000, () =>
+      fetchAll(() =>
+        supabase
+          .from('orders')
+          .select('id, group_id, branch, item_name, quantity, unit_price, discount, remarks, accepted_at, paid_gcash, utang_status')
+          .eq('status', 'accepted')
+          .gte('accepted_at', new Date(`${fromKey}T00:00:00`).toISOString())
+          .lt('accepted_at', new Date(`${toKey}T00:00:00`).toISOString())
+          .order('id'),
+      ),
+    ),
+    cachedQuery('home:stock', 60 * 1000, () => supabase.from('stock').select('branch, item_name, quantity')),
+    lpgPrices(),
+    Promise.all(
+      BRANCHES.map((b) =>
+        cachedQuery(`home:empties:${b.id}:${day}`, 60 * 1000, () =>
+          supabase.rpc('empties_report', { p_branch: b.id, p_day: day }),
+        ),
+      ),
+    ),
+    cachedQuery('home:first-year', 10 * 60 * 1000, () =>
+      supabase.from('orders').select('accepted_at').eq('status', 'accepted').not('accepted_at', 'is', null).order('accepted_at').limit(1),
+    ),
+  ])
+  const error = ordersResult.error || stockResult.error
+  const key = `${fromKey}:${toKey}`
+  if (error) return { ...EMPTY, key, orders: [], message: error.message }
+  const empties = {}
+  BRANCHES.forEach((b, i) => {
+    empties[b.id] = {}
+    for (const r of emptiesResults[i].data || []) empties[b.id][r.size] = Number(r.actual ?? r.ending ?? 0)
+  })
+  return {
+    key,
+    orders: ordersResult.data,
+    stock: stockResult.data || [],
+    empties,
+    sizes: (pricesResult.data || []).map((p) => p.size),
+    levels: Object.fromEntries((pricesResult.data || []).map((p) => [p.size, p.low_stock_level])),
+    firstYear: firstResult.data?.[0] ? new Date(firstResult.data[0].accepted_at).getFullYear() : null,
+    message: '',
+  }
+}
+
+// Admin Home analytics, filtered by one branch (or all), a month (or the whole year) and a year:
+//  Sales: the period's numbers vs the same days of the period before, revenue vs expenses per day
+//  (or per month for a whole year), sales by hour, sizes, payments, branches.
+//  Inventory (always now): filled stock per branch and size (low / out), days of stock left
+//  (from the last 7 days of sales), filled vs empty tanks per branch.
 export default function HomeAnalytics({ branch, onOpenAnalytics }) {
+  const now = new Date()
   const [picked, setPicked] = useState(ALL) // the branch filter: ALL or a branch id
+  const [month, setMonth] = useState(pad2(now.getMonth() + 1)) // '01'..'12', '' = the whole year
+  const [year, setYear] = useState(String(now.getFullYear()))
   // picking another branch on the home page filters the analytics to it
   const [shownBranch, setShownBranch] = useState(branch)
   if (shownBranch !== branch) {
@@ -117,107 +172,97 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
     setPicked(branch)
   }
   const onlyBranch = picked !== ALL
-  const [orders, setOrders] = useState(null)
-  const [stock, setStock] = useState([]) // [{ branch, item_name, quantity }]
-  const [empties, setEmpties] = useState({}) // { branch: { size: count } }
-  const [sizes, setSizes] = useState([]) // ['2.7kg', '11kg', ...]
-  const [levels, setLevels] = useState({}) // { size: low stock level }
-  const [message, setMessage] = useState('')
+  const [data, setData] = useState(EMPTY)
 
-  const load = useCallback(async () => {
-    const from = daysAgo(13)
-    const day = todayString()
-    const [ordersResult, stockResult, pricesResult, emptiesResults] = await Promise.all([
-      cachedQuery(`home:orders:${dateString(from)}`, 60 * 1000, () =>
-        fetchAll(() =>
-          supabase
-            .from('orders')
-            .select('id, group_id, branch, item_name, quantity, unit_price, discount, remarks, accepted_at, paid_gcash, utang_status')
-            .eq('status', 'accepted')
-            .gte('accepted_at', from.toISOString())
-            .order('id'),
-        ),
-      ),
-      cachedQuery('home:stock', 60 * 1000, () => supabase.from('stock').select('branch, item_name, quantity')),
-      lpgPrices(),
-      Promise.all(
-        BRANCHES.map((b) =>
-          cachedQuery(`home:empties:${b.id}:${day}`, 60 * 1000, () =>
-            supabase.rpc('empties_report', { p_branch: b.id, p_day: day }),
-          ),
-        ),
-      ),
-    ])
-    const error = ordersResult.error || stockResult.error
-    if (error) return setMessage(error.message)
-    setMessage('')
-    setOrders(ordersResult.data)
-    setStock(stockResult.data || [])
-    setSizes((pricesResult.data || []).map((p) => p.size))
-    setLevels(Object.fromEntries((pricesResult.data || []).map((p) => [p.size, p.low_stock_level])))
-    const e = {}
-    BRANCHES.forEach((b, i) => {
-      e[b.id] = {}
-      for (const r of emptiesResults[i].data || []) e[b.id][r.size] = Number(r.actual ?? r.ending ?? 0)
-    })
-    setEmpties(e)
-  }, [])
+  // the period [start, end), the period before it, and what is loaded (also the last 7 days)
+  const y = Number(year)
+  const m = month ? Number(month) : 0
+  const start = m ? new Date(y, m - 1, 1) : new Date(y, 0, 1)
+  const end = m ? new Date(y, m, 1) : new Date(y + 1, 0, 1)
+  const prevStart = m ? new Date(y, m - 2, 1) : new Date(y - 1, 0, 1)
+  const todayStart = daysAgo(0)
+  const tomorrow = daysAgo(-1)
+  const weekStart = daysAgo(6)
+  const fromKey = dateString(prevStart < weekStart ? prevStart : weekStart)
+  const toKey = dateString(end > tomorrow ? end : tomorrow)
 
+  // loads again when the period changes, and on every live change of the tables below
   useEffect(() => {
-    load()
-  }, [load])
-  useLiveTables(['orders', 'stock', 'stock_movements', 'empties_days', 'lpg_prices'], load, {
+    let current = true
+    fetchHome(fromKey, toKey).then((d) => current && setData(d))
+    return () => {
+      current = false
+    }
+  }, [fromKey, toKey])
+  useLiveTables(['orders', 'stock', 'stock_movements', 'empties_days', 'lpg_prices'], () => fetchHome(fromKey, toKey).then(setData), {
     cachePrefix: 'home:',
     delay: 1500,
   })
+  const { orders, stock, empties, sizes, levels, message } = data
+  const firstYear = data.firstYear ?? now.getFullYear()
 
-  const loading = orders === null
+  // dimmed while the numbers of a newly picked period load
+  const loading = orders === null || data.key !== `${fromKey}:${toKey}`
   const branchIds = onlyBranch ? [picked] : BRANCHES.map((b) => b.id)
   const rows = (orders || []).filter((o) => branchIds.includes(o.branch))
+  const between = (a, b) => rows.filter((o) => {
+    const t = new Date(o.accepted_at)
+    return t >= a && t < b
+  })
 
   // ---------------- sales ----------------
-  const byDay = {}
-  for (const o of rows) (byDay[localDateString(o.accepted_at)] ||= []).push(o)
-  const dayList = (n) => byDay[dateString(daysAgo(n))] || []
-  const today = dayList(0)
-  const yesterday = dayList(1)
-  const last7 = Array.from({ length: 7 }, (_, i) => dayList(i)).flat()
+  // a period still running is compared with the same number of days of the period before
+  const running = todayStart >= start && todayStart < end
+  const periodEnd = running ? tomorrow : end
+  const elapsedDays = Math.max(1, Math.round((periodEnd - start) / 86400000))
+  const sameDays = new Date(prevStart.getFullYear(), prevStart.getMonth(), prevStart.getDate() + elapsedDays)
+  const prevEnd = running && sameDays < start ? sameDays : start
+  const period = between(start, periodEnd)
+  const prev = between(prevStart, prevEnd)
+  const today = between(todayStart, tomorrow)
+  const last7 = between(weekStart, tomorrow)
   const net = (list) => revenue(list) - expensesOfOrders(list)
+  const future = start > todayStart
+  const unit = m ? 'month' : 'year'
+  const compareLabel = running ? `vs same days last ${unit}` : `vs last ${unit}`
+  const periodText = m ? `${MONTHS[m - 1]} ${year}` : year
 
-  const week = Array.from({ length: 7 }, (_, i) => 6 - i).map((n) => {
-    const list = dayList(n)
-    const d = daysAgo(n)
-    return { n, label: n === 0 ? 'Today' : DAY_NAMES[d.getDay()], date: d, revenue: revenue(list), expenses: expensesOfOrders(list), sales: salesOf(list) }
-  })
-  const weekTotal = sum(week, (d) => d.revenue)
-  const weekExpenses = sum(week, (d) => d.expenses)
-  const prevWeekTotal = sum(Array.from({ length: 7 }, (_, i) => i + 7), (n) => revenue(dayList(n)))
-  const weekMax = Math.max(...week.map((d) => Math.max(d.revenue, d.expenses)), 1)
+  // revenue vs expenses: per day of the month, or per month of the year (up to today)
+  const buckets = m
+    ? Array.from({ length: new Date(y, m, 0).getDate() }, (_, i) => {
+        const a = new Date(y, m - 1, i + 1)
+        const b = new Date(y, m - 1, i + 2)
+        return { key: i, label: String(i + 1), tick: i === 0 || (i + 1) % 5 === 0, title: a.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }), a, b }
+      })
+    : MONTHS.map((name, i) => ({ key: i, label: name.slice(0, 3), tick: true, title: `${name} ${year}`, a: new Date(y, i, 1), b: new Date(y, i + 1, 1) }))
+  const trend = buckets
+    .filter((k) => k.a <= todayStart)
+    .map((k) => {
+      const list = between(k.a, k.b)
+      return { ...k, revenue: revenue(list), expenses: expensesOfOrders(list), sales: salesOf(list) }
+    })
+  const trendMax = Math.max(...trend.map((d) => Math.max(d.revenue, d.expenses)), 1)
+  const best = trend.reduce((a, b) => (b.revenue > (a?.revenue ?? 0) ? b : a), null)
 
-  // sales by hour: today vs the average of the 6 days before
+  // sales by hour: tanks sold a day on average, in each hour of the period
   const HOURS = Array.from({ length: 16 }, (_, i) => i + 6) // 6 AM to 9 PM
   const hourOf = (o) => new Date(o.accepted_at).getHours()
-  const before = Array.from({ length: 6 }, (_, i) => dayList(i + 1)).flat()
-  const hours = HOURS.map((h) => ({
-    h,
-    today: tanksOf(today.filter((o) => hourOf(o) === h)),
-    avg: tanksOf(before.filter((o) => hourOf(o) === h)) / 6,
-  }))
-  const hourMax = Math.max(...hours.map((x) => Math.max(x.today, x.avg)), 1)
+  const hours = HOURS.map((h) => ({ h, avg: tanksOf(period.filter((o) => hourOf(o) === h)) / elapsedDays }))
+  const hourMax = Math.max(...hours.map((x) => x.avg), 0.0001)
   const busiest = hours.reduce((a, b) => (b.avg > a.avg ? b : a), hours[0])
   const hourText = (h) => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
 
-  // sizes sold, last 7 days
+  // sizes sold in the period
   const sizeRows = sizes.map((s) => {
-    const list = last7.filter((o) => sizeOf(o.item_name) === s)
+    const list = period.filter((o) => sizeOf(o.item_name) === s)
     return { size: s, tanks: tanksOf(list), revenue: revenue(list) }
   })
   const sizeMax = Math.max(...sizeRows.map((s) => s.revenue), 1)
 
-  // payments, last 7 days
-  const utang = revenue(last7.filter(isUtang))
-  const gcash = revenue(last7.filter(isGcash))
-  const cash = revenue(last7) - utang - gcash
+  // payments in the period
+  const utang = revenue(period.filter(isUtang))
+  const gcash = revenue(period.filter(isGcash))
+  const cash = revenue(period) - utang - gcash
   const payTotal = cash + gcash + utang
   const payments = [
     { label: 'Cash', value: cash, color: C.cash },
@@ -225,10 +270,10 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
     { label: 'Utang (unpaid)', value: utang, color: C.utang },
   ]
 
-  // today by branch
+  // the period by branch
   const branchRows = BRANCHES.filter((b) => branchIds.includes(b.id))
     .map((b) => {
-      const list = today.filter((o) => o.branch === b.id)
+      const list = period.filter((o) => o.branch === b.id)
       return { id: b.id, name: b.name, revenue: revenue(list), sales: salesOf(list) }
     })
     .sort((a, b) => b.revenue - a.revenue)
@@ -262,11 +307,24 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   })
   const tankMax = Math.max(...tankRows.map((t) => t.total), 1)
 
+  const years = Array.from({ length: now.getFullYear() - firstYear + 1 }, (_, i) => String(now.getFullYear() - i))
+
   const tiles = [
-    { label: "Today's Revenue", value: peso(revenue(today)), change: changeOf(revenue(today), revenue(yesterday)) },
-    { label: 'Sales Today', value: salesOf(today).toLocaleString('en-PH'), change: changeOf(salesOf(today), salesOf(yesterday)), sub: `${num(tanksOf(today))} tanks` },
-    { label: 'LPG Sold Today', value: `${num(sum(today, kgOf))} kg`, change: changeOf(sum(today, kgOf), sum(yesterday, kgOf)) },
-    { label: 'Net Today', value: peso(net(today)), change: changeOf(net(today), net(yesterday)), negative: net(today) < 0 },
+    {
+      label: 'Revenue',
+      value: peso(revenue(period)),
+      change: changeOf(revenue(period), revenue(prev)),
+      sub: running ? `today ${peso(revenue(today))} · ${peso(revenue(period) / elapsedDays)} a day` : `${peso(revenue(period) / elapsedDays)} a day`,
+    },
+    { label: 'Sales', value: salesOf(period).toLocaleString('en-PH'), change: changeOf(salesOf(period), salesOf(prev)), sub: `${num(tanksOf(period))} tanks` },
+    { label: 'LPG Sold', value: `${num(sum(period, kgOf))} kg`, change: changeOf(sum(period, kgOf), sum(prev, kgOf)) },
+    {
+      label: 'Net Income',
+      value: peso(net(period)),
+      change: changeOf(net(period), net(prev)),
+      negative: net(period) < 0,
+      sub: revenue(period) > 0 ? `margin ${((net(period) / revenue(period)) * 100).toFixed(1)}%` : '',
+    },
     { label: 'Filled Tanks Now', value: num(filledTotal), sub: `${num(emptyTotal)} empty` },
     {
       label: 'Stock Alerts',
@@ -286,20 +344,23 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
           Analytics
         </h2>
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
-          <div className="flex flex-wrap gap-1 rounded-lg border border-(color:--border) p-0.5 text-[14px] font-semibold" role="group" aria-label="Branch filter">
-            {[{ id: ALL, name: 'All branches' }, ...BRANCHES].map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                aria-pressed={picked === f.id}
-                onClick={() => setPicked(f.id)}
-                className="min-h-0 rounded-md px-3 py-1 text-[14px] text-white"
-                style={{ background: picked === f.id ? GREEN : '#5d8f80' }}
-              >
-                {f.name}
-              </button>
+          <select value={picked} onChange={(e) => setPicked(Number(e.target.value))} aria-label="Branch">
+            <option value={ALL}>All branches</option>
+            {BRANCHES.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
             ))}
-          </div>
+          </select>
+          <select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
+            <option value="">Whole year</option>
+            {MONTHS.map((name, i) => (
+              <option key={name} value={pad2(i + 1)}>{name}</option>
+            ))}
+          </select>
+          <select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
+            {years.map((v) => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={onOpenAnalytics}
@@ -312,7 +373,9 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       </div>
       {message && <p className="m-0 text-[14px] text-brand-red">{message}</p>}
 
-      {/* ---- today at a glance ---- */}
+      {future && <p className="m-0 text-[14px] text-gray-500">{periodText} has not started yet.</p>}
+
+      {/* ---- the period at a glance ---- */}
       <div>
         <div className={`grid grid-cols-6 gap-3 max-[1300px]:grid-cols-3 max-[700px]:grid-cols-2 ${loading ? 'animate-pulse opacity-60' : ''}`}>
           {tiles.map((t) => (
@@ -321,49 +384,48 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               <span className={`text-[21px] leading-tight font-bold tabular-nums ${t.negative ? 'text-brand-red' : 'text-gray-900'}`}>
                 {loading ? '—' : t.value}
               </span>
-              {!loading && t.change && <Change change={t.change} label="vs yesterday" />}
+              {!loading && t.change && <Change change={t.change} label={compareLabel} />}
               {!loading && t.sub && <span className="text-[13px] text-gray-500">{t.sub}</span>}
             </div>
           ))}
         </div>
         <Legend
           items={[
-            { mark: '▲', markClass: 'text-brand-pine-light', label: 'better than yesterday' },
-            { mark: '▼', markClass: 'text-brand-red', label: 'worse than yesterday' },
-            { mark: 'new', label: 'no sales yesterday' },
+            { mark: '▲', markClass: 'text-brand-pine-light', label: `better, ${compareLabel}` },
+            { mark: '▼', markClass: 'text-brand-red', label: `worse, ${compareLabel}` },
+            { mark: 'new', label: `no sales last ${unit}` },
             { mark: 'Net', label: 'revenue minus expenses' },
           ]}
         />
       </div>
 
       {/* ================= SALES ================= */}
-      <SectionTitle hint={`${scopeText} · last 7 days`}>Sales</SectionTitle>
+      <SectionTitle hint={`${scopeText} · ${periodText}`}>Sales</SectionTitle>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* revenue vs expenses per day */}
+        {/* revenue vs expenses per day (a month) or per month (a year) */}
         <div className={PANEL}>
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className={PANEL_TITLE}>Revenue vs expenses</span>
+            <span className={PANEL_TITLE}>Revenue vs expenses, per {m ? 'day' : 'month'}</span>
             <span className="text-[13px] tabular-nums text-gray-500">
-              {peso(weekTotal)} · net {peso(weekTotal - weekExpenses)}{' '}
-              {!loading && <Change change={changeOf(weekTotal, prevWeekTotal)} label="vs previous 7 days" />}
+              {best && best.revenue > 0 ? `best: ${best.title} (${peso(best.revenue)})` : ''}
             </span>
           </div>
-          <div className="flex h-40 items-end gap-2 border-b border-gray-200" role="img" aria-label="Revenue and expenses per day, last 7 days">
-            {week.map((d) => (
-              <div key={d.n} className="group relative flex h-full flex-1 items-end justify-center gap-[2px]">
+          <div className={`flex h-40 items-end ${m ? 'gap-[3px]' : 'gap-2'} border-b border-gray-200`} role="img" aria-label={`Revenue and expenses per ${m ? 'day' : 'month'}, ${periodText}`}>
+            {trend.map((d) => (
+              <div key={d.key} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-[1px]">
                 {[
                   { v: d.revenue, c: C.revenue },
                   { v: d.expenses, c: C.expenses },
                 ].map((bar, i) => (
                   <div
                     key={i}
-                    className="w-full max-w-5 rounded-t-[4px]"
-                    style={{ height: `${(bar.v / weekMax) * 90}%`, minHeight: bar.v > 0 ? 2 : 0, background: bar.c }}
+                    className="w-full max-w-5 rounded-t-[3px]"
+                    style={{ height: `${(bar.v / trendMax) * 90}%`, minHeight: bar.v > 0 ? 2 : 0, background: bar.c }}
                   />
                 ))}
                 <Tip>
-                  <div className="font-semibold">{d.date.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                  <div className="font-semibold">{d.title}</div>
                   <div>Revenue: {peso(d.revenue)}</div>
                   <div>Expenses: {peso(d.expenses)}</div>
                   <div className="font-semibold">Net: {peso(d.revenue - d.expenses)}</div>
@@ -372,18 +434,16 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               </div>
             ))}
           </div>
-          <div className="mt-1 flex gap-2">
-            {week.map((d) => (
-              <span key={d.n} className={`flex-1 text-center text-[12px] ${d.n === 0 ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
-                {d.label}
-              </span>
+          <div className={`mt-1 flex ${m ? 'gap-[3px]' : 'gap-2'}`}>
+            {trend.map((d) => (
+              <span key={d.key} className="min-w-0 flex-1 text-center text-[11px] text-gray-500">{d.tick ? d.label : ''}</span>
             ))}
           </div>
           <Legend
             items={[
               { color: C.revenue, label: 'Revenue' },
               { color: C.expenses, label: 'Expenses' },
-              { mark: '▲▼', label: 'revenue vs the 7 days before' },
+              { mark: '↑', label: 'hover a bar for its net and sales' },
             ]}
           />
         </div>
@@ -393,24 +453,19 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
             <span className={PANEL_TITLE}>Tanks sold by hour</span>
             <span className="text-[13px] text-gray-500">
-              {busiest && busiest.avg > 0 ? `usually busiest at ${hourText(busiest.h)}` : ''}
+              {busiest && busiest.avg > 0 ? `busiest at ${hourText(busiest.h)}` : ''}
             </span>
           </div>
-          <div className="flex h-40 items-end gap-1 border-b border-gray-200" role="img" aria-label="Tanks sold by hour, today and the usual day">
+          <div className="flex h-40 items-end gap-1 border-b border-gray-200" role="img" aria-label={`Tanks sold a day by hour, ${periodText}`}>
             {hours.map((x) => (
               <div key={x.h} className="group relative flex h-full flex-1 items-end justify-center">
                 <div
                   className="w-full max-w-4 rounded-t-[4px]"
-                  style={{ height: `${(x.today / hourMax) * 90}%`, minHeight: x.today > 0 ? 2 : 0, background: C.revenue }}
+                  style={{ height: `${(x.avg / hourMax) * 90}%`, minHeight: x.avg > 0 ? 2 : 0, background: C.revenue }}
                 />
-                {/* the usual day: a marker line at the 6-day average */}
-                {x.avg > 0 && (
-                  <div className="absolute inset-x-0 h-[2px] rounded" style={{ bottom: `${(x.avg / hourMax) * 90}%`, background: C.usual }} />
-                )}
                 <Tip>
                   <div className="font-semibold">{hourText(x.h)} – {hourText(x.h + 1)}</div>
-                  <div>Today: {num(x.today)} tanks</div>
-                  <div className="text-gray-500">Usual: {num(x.avg)} tanks</div>
+                  <div>{num(x.avg)} tanks a day</div>
                 </Tip>
               </div>
             ))}
@@ -420,12 +475,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               <span key={x.h} className="flex-1 text-center text-[11px] text-gray-500">{x.h % 3 === 0 ? hourText(x.h) : ''}</span>
             ))}
           </div>
-          <Legend
-            items={[
-              { color: C.revenue, label: 'Today' },
-              { color: C.usual, label: 'Usual day (average of the 6 days before)' },
-            ]}
-          />
+          <Legend items={[{ color: C.revenue, label: `Tanks sold a day on average, ${periodText}` }]} />
         </div>
       </div>
 
@@ -446,7 +496,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               </div>
             ))}
           </div>
-          <Legend items={[{ color: C.revenue, label: 'Revenue, last 7 days' }, { mark: 'pcs', label: 'tanks sold' }]} />
+          <Legend items={[{ color: C.revenue, label: `Revenue, ${periodText}` }, { mark: 'pcs', label: 'tanks sold' }]} />
         </div>
 
         {/* payments */}
@@ -466,12 +516,12 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               </div>
             ))}
           </div>
-          <Legend items={[{ mark: '%', label: 'share of revenue, last 7 days' }]} />
+          <Legend items={[{ mark: '%', label: `share of revenue, ${periodText}` }]} />
         </div>
 
-        {/* today by branch */}
+        {/* the period by branch */}
         <div className={PANEL}>
-          <span className={`${PANEL_TITLE} mb-2 block`}>Today by branch</span>
+          <span className={`${PANEL_TITLE} mb-2 block`}>By branch</span>
           <div className="grid gap-2">
             {branchRows.map((b) => (
               <div key={b.id} className="grid gap-1">
@@ -485,7 +535,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               </div>
             ))}
           </div>
-          <Legend items={[{ color: C.revenue, label: 'Revenue today' }, { mark: '· n', label: 'number of sales' }]} />
+          <Legend items={[{ color: C.revenue, label: `Revenue, ${periodText}` }, { mark: '· n', label: 'number of sales' }]} />
         </div>
       </div>
 
