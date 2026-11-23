@@ -65,12 +65,14 @@ const BODY_CELL = 'border border-(color:--border) px-2 py-2 text-center text-[14
 const BODY_LABEL = 'border border-(color:--border) bg-[#eef5f2] px-4 py-2 text-left text-[14px] uppercase text-brand-pine'
 // a white gap before each group (FILLED, EMPTIES, REMARKS) so they do not sit too close
 const GAP = 'border-l-[10px] border-l-white'
-// group colors: FILLED green, EMPTIES amber, REMARKS grey
+// group colors: FILLED green, EMPTIES amber, REMARKS blue
 const FILLED_HEAD = 'bg-[#dcefe8] text-brand-pine'
 const FILLED_CELL = 'bg-[#f6fbf9]'
 const EMPTIES_HEAD = 'bg-[#fbecd9] text-[#8a4b0f]'
 const EMPTIES_CELL = 'bg-[#fffaf3]'
-const REMARKS_HEAD = 'bg-gray-100 text-gray-700'
+const REMARKS_HEAD = 'bg-[#dde8f6] text-[#1f4e8c]'
+const REMARKS_LABEL = 'bg-[#edf3fb] text-[#1f4e8c]'
+const REMARKS_CELL = 'bg-[#f7faff]'
 const NUMBER_INPUT = 'box-border h-6 w-full max-w-20 min-w-0 rounded-md px-1 py-0 text-center text-[14px]'
 
 // "2.7kg" -> "2.7 KG"
@@ -614,7 +616,7 @@ export default function InventoryTable({
         // absolute: the remark lines fill the height of the table and never make it taller
         <td
           rowSpan={7}
-          className={`relative border border-(color:--border) ${GAP} p-0 text-left align-top`}
+          className={`relative border border-(color:--border) ${GAP} ${REMARKS_CELL} p-0 text-left align-top`}
           data-export={remarksExport}
         >
           {/* the remark lines: label, total (filled in later), note.
@@ -629,7 +631,7 @@ export default function InventoryTable({
               const under = i < REMARK_LINES.length - 1 || shownRemarks.old ? 'border-b' : ''
               return (
               <Fragment key={line.key}>
-                <div className={`flex items-center ${under} border-(color:--border) bg-gray-50 px-4 py-1.5 font-medium uppercase text-gray-700`}>
+                <div className={`flex items-center ${under} border-(color:--border) ${REMARKS_LABEL} px-4 py-1.5 font-medium uppercase`}>
                   {i + 1}. {line.label}
                 </div>
                 <div className={`flex items-center justify-center ${under} border-l border-(color:--border) px-2 py-1.5 font-semibold`}>
