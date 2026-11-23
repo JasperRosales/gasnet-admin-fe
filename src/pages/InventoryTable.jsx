@@ -629,7 +629,7 @@ export default function InventoryTable({
       {options.remarks && (
         // absolute: the remark lines fill the height of the table and never make it taller
         <td
-          rowSpan={7}
+          rowSpan={8} // the 7 rows and the gap under Total
           className={`relative border border-(color:--border) ${GAP} ${REMARKS_CELL} p-0 text-left align-top`}
           style={outline(REMARKS_LINE, { l: 1, r: 1, b: 1 })}
           data-export={remarksExport}
@@ -858,6 +858,18 @@ export default function InventoryTable({
                 (e) => (editing ? liveEmpties(e).total : e.total),
                 { bold: true }
               )}
+
+              {/* a gap between Total and Sales: the two numbers the day is checked by */}
+              <tr className="h-3" aria-hidden="true" data-export-skip>
+                <th className="border-0 bg-white p-0" />
+                {rows.map((r, i) => (
+                  <td key={r.size} className={`border-0 bg-white p-0 ${i === 0 ? GAP : ''}`} style={outline(FILLED_LINE, { l: i === 0, r: i === rows.length - 1 })} />
+                ))}
+                {SHOW_EMPTIES &&
+                  rows.map((r, i) => (
+                    <td key={`empty-${r.size}`} className={`border-0 bg-white p-0 ${i === 0 ? GAP : ''}`} style={outline(EMPTIES_LINE, { l: i === 0, r: i === rows.length - 1 })} />
+                  ))}
+              </tr>
 
               {bodyRow(
                 'Sales',
