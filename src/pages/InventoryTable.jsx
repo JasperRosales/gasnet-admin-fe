@@ -73,6 +73,20 @@ const EMPTIES_CELL = 'bg-[#fffaf3]'
 const REMARKS_HEAD = 'bg-[#dde8f6] text-[#1f4e8c]'
 const REMARKS_LABEL = 'bg-[#edf3fb] text-[#1f4e8c]'
 const REMARKS_CELL = 'bg-[#f7faff]'
+// a colored outline around each sheet (FILLED, EMPTIES, REMARKS), drawn inside its edge cells
+const FILLED_LINE = '#0a6b57'
+const EMPTIES_LINE = '#c2742a'
+const REMARKS_LINE = '#3b6fb6'
+const outline = (color, { t, r, b, l }) => {
+  const w = 2
+  const parts = [
+    t && `inset 0 ${w}px 0 ${color}`,
+    r && `inset -${w}px 0 0 ${color}`,
+    b && `inset 0 -${w}px 0 ${color}`,
+    l && `inset ${w}px 0 0 ${color}`,
+  ].filter(Boolean)
+  return parts.length ? { boxShadow: parts.join(', ') } : undefined
+}
 const NUMBER_INPUT = 'box-border h-6 w-full max-w-20 min-w-0 rounded-md px-1 py-0 text-center text-[14px]'
 
 // "2.7kg" -> "2.7 KG"
@@ -601,13 +615,13 @@ export default function InventoryTable({
         {label}
       </th>
       {rows.map((r, i) => (
-        <td key={r.size} className={`${BODY_CELL} ${FILLED_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''}`}>{filled(r)}</td>
+        <td key={r.size} className={`${BODY_CELL} ${FILLED_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''}`} style={outline(FILLED_LINE, { l: i === 0, r: i === rows.length - 1, b: options.last })}>{filled(r)}</td>
       ))}
       {SHOW_EMPTIES &&
         rows.map((r, i) => {
           const e = emptyBySize[r.size]
           return (
-            <td key={`empty-${r.size}`} className={`${BODY_CELL} ${EMPTIES_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''} ${e ? '' : 'text-gray-400'}`}>
+            <td key={`empty-${r.size}`} className={`${BODY_CELL} ${EMPTIES_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''} ${e ? '' : 'text-gray-400'}`} style={outline(EMPTIES_LINE, { l: i === 0, r: i === rows.length - 1, b: options.last })}>
               {e ? empties(e) : '-'}
             </td>
           )
@@ -617,12 +631,13 @@ export default function InventoryTable({
         <td
           rowSpan={7}
           className={`relative border border-(color:--border) ${GAP} ${REMARKS_CELL} p-0 text-left align-top`}
+          style={outline(REMARKS_LINE, { l: 1, r: 1, b: 1 })}
           data-export={remarksExport}
         >
           {/* the remark lines: label, total (filled in later), note.
               Equal rows of a fixed height: a long note scrolls inside its own cell. */}
           <div
-            className={`absolute inset-0 grid grid-cols-[36%_14%_50%] text-[14px] ${
+            className={`absolute inset-[2px] grid grid-cols-[36%_14%_50%] text-[14px] ${
               shownRemarks.old ? 'grid-rows-[repeat(7,minmax(0,1fr))]' : 'grid-rows-[repeat(6,minmax(0,1fr))]'
             }`}
           >
@@ -754,19 +769,19 @@ export default function InventoryTable({
                   <div className="font-normal">{shownDate}</div>
                 </th>
                 <th colSpan={columns} className={`${CELL} ${GAP} bg-brand-pine tracking-wide text-white`}>STOCK INVENTORY</th>
-                <th rowSpan={3} className={`${CELL} ${GAP} ${REMARKS_HEAD} w-[30%] tracking-wide`}>REMARKS</th>
+                <th rowSpan={3} className={`${CELL} ${GAP} ${REMARKS_HEAD} w-[30%] tracking-wide`} style={outline(REMARKS_LINE, { t: 1, r: 1, l: 1 })}>REMARKS</th>
               </tr>
               <tr>
-                <th colSpan={sizeCount} className={`${CELL} ${GAP} ${FILLED_HEAD} tracking-wide`}>FILLED</th>
-                {SHOW_EMPTIES && <th colSpan={sizeCount} className={`${CELL} ${GAP} ${EMPTIES_HEAD} tracking-wide`}>EMPTIES</th>}
+                <th colSpan={sizeCount} className={`${CELL} ${GAP} ${FILLED_HEAD} tracking-wide`} style={outline(FILLED_LINE, { t: 1, r: 1, l: 1 })}>FILLED</th>
+                {SHOW_EMPTIES && <th colSpan={sizeCount} className={`${CELL} ${GAP} ${EMPTIES_HEAD} tracking-wide`} style={outline(EMPTIES_LINE, { t: 1, r: 1, l: 1 })}>EMPTIES</th>}
               </tr>
               <tr>
                 {rows.map((r, i) => (
-                  <th key={`filled-${r.size}`} className={`${CELL} ${FILLED_HEAD} ${i === 0 ? GAP : ''}`}>{sizeLabel(r.size)}</th>
+                  <th key={`filled-${r.size}`} className={`${CELL} ${FILLED_HEAD} ${i === 0 ? GAP : ''}`} style={outline(FILLED_LINE, { l: i === 0, r: i === rows.length - 1 })}>{sizeLabel(r.size)}</th>
                 ))}
                 {SHOW_EMPTIES &&
                   rows.map((r, i) => (
-                    <th key={`empties-${r.size}`} className={`${CELL} ${EMPTIES_HEAD} ${i === 0 ? GAP : ''}`}>{sizeLabel(r.size)}</th>
+                    <th key={`empties-${r.size}`} className={`${CELL} ${EMPTIES_HEAD} ${i === 0 ? GAP : ''}`} style={outline(EMPTIES_LINE, { l: i === 0, r: i === rows.length - 1 })}>{sizeLabel(r.size)}</th>
                   ))}
               </tr>
             </thead>
@@ -960,7 +975,7 @@ export default function InventoryTable({
                     </span>
                   )
                 },
-                { height: 'h-28' }
+                { height: 'h-28', last: true }
               )}
             </tbody>
           </table>
