@@ -13,6 +13,7 @@ const Recommendations = lazy(() => import('./Recommendations'))
 const Analytics = lazy(() => import('./Analytics'))
 const UpdatePrice = lazy(() => import('./UpdatePrice'))
 const MonthlySales = lazy(() => import('./MonthlySales'))
+const WeeklySales = lazy(() => import('./WeeklySales'))
 const YearEndReport = lazy(() => import('./YearEndReport'))
 const TankRevolving = lazy(() => import('./TankRevolving'))
 const AdminHome = lazy(() => import('./AdminHome'))
@@ -26,6 +27,7 @@ const OVERALL = 0 // "Overall" under Branches: the total of all branches
 const PAGE_PATHS = {
   home: '/home',
   tankcount: '/tanks-count',
+  weekly: '/weekly',
   monthly: '/monthly',
   yearend: '/year-end',
   customers: '/customers',
@@ -103,6 +105,7 @@ export default function Admin({ user }) {
       ],
     },
     { key: 'tankcount', label: 'Tanks Count', icon: 'box' },
+    { key: 'weekly', label: 'Weekly Sales Report', icon: 'calendar' },
     { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
     { key: 'yearend', label: 'Year End Report', icon: 'file' },
     { key: 'customers', label: 'Customer Profile', icon: 'idcard' },
@@ -174,6 +177,9 @@ export default function Admin({ user }) {
           onViewChange={(v) => go(branchPath(branch, v))}
         />
       )}
+
+      {tab === 'weekly' && <WeeklySales />}
+
 
       {tab === 'monthly' && <MonthlySales />}
 

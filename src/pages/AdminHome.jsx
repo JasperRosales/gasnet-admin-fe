@@ -55,7 +55,7 @@ function Flame({ className = 'h-16 w-auto' }) {
 // Everything is kept small enough to fit on one screen.
 export default function AdminHome({
   adminBranch, // the branch whose price the admin can update (Caloocan)
-  onOpen, // onOpen('recommendation' | 'tankcount' | 'monthly' | 'yearend')
+  onOpen, // onOpen('recommendation' | 'tankcount' | 'weekly' | 'monthly' | 'yearend')
   onOpenBranch, // onOpenBranch(branchId)
   onUpdatePrice,
 }) {
@@ -95,6 +95,7 @@ export default function AdminHome({
   const shown = (value) => (value === null || value === undefined ? '—' : value.toLocaleString('en-PH'))
 
   const tiles = [
+    { key: 'weekly', label: 'Weekly Sales Report', icon: 'chart' },
     { key: 'monthly', label: 'Monthly Sales Report', icon: 'chart' },
     { key: 'yearend', label: 'Year End Report', icon: 'calendar' },
   ]
@@ -136,7 +137,7 @@ export default function AdminHome({
             <Icon name="arrow" />
           </button>
 
-          <div className={`${CARD} grid gap-3 p-3 sm:grid-cols-[1.4fr_1fr_1fr]`}>
+          <div className={`${CARD} grid gap-3 p-3 sm:grid-cols-[1.4fr_1fr_1fr_1fr]`}>
             {/* Tanks Count: the total under the name, Revolving and Borrowed on the right */}
             <button
               type="button"

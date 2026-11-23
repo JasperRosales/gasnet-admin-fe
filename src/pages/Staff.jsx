@@ -13,6 +13,7 @@ const DailySalesReport = lazy(() => import('./DailySalesReport'))
 const TankBorrowed = lazy(() => import('./TankBorrowed'))
 const TankRevolving = lazy(() => import('./TankRevolving'))
 const MonthlySales = lazy(() => import('./MonthlySales'))
+const WeeklySales = lazy(() => import('./WeeklySales'))
 const YearEndReport = lazy(() => import('./YearEndReport'))
 const CustomerProfile = lazy(() => import('./CustomerProfile'))
 const StaffHome = lazy(() => import('./StaffHome'))
@@ -25,6 +26,7 @@ const PAGE_PATHS = {
   report: '/sales-log',
   dailyreport: '/daily-report',
   borrowed: '/borrowed',
+  weekly: '/weekly',
   monthly: '/monthly',
   yearend: '/year-end',
   customers: '/customers',
@@ -74,6 +76,7 @@ export default function Staff({ branch, fullName }) {
     },
     { key: 'dailyreport', label: 'Daily Sales Report', icon: 'file' },
     { key: 'borrowed', label: 'Borrowed', icon: 'repeat' },
+    { key: 'weekly', label: 'Weekly Sales Report', icon: 'calendar' },
     { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
     { key: 'yearend', label: 'Year End Report', icon: 'file' },
     { key: 'customers', label: 'Customer Profile', icon: 'idcard' },
@@ -125,6 +128,7 @@ export default function Staff({ branch, fullName }) {
       {tab === 'dailyreport' && <DailySalesReport branch={branch} canEdit />}
 
       {/* the reports, with only this branch's orders */}
+      {tab === 'weekly' && <WeeklySales branch={branch} />}
       {tab === 'monthly' && <MonthlySales branch={branch} />}
 
       {tab === 'yearend' && <YearEndReport branch={branch} />}

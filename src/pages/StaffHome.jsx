@@ -200,6 +200,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
   const shown = (value) => (value === null || value === undefined ? '—' : value.toLocaleString('en-PH'))
 
   const quick = [
+    { key: 'weekly', label: 'Weekly Sales Report', text: "See your branch's sales day by day this week.", icon: 'doc' },
     { key: 'monthly', label: 'Monthly Sales Report', text: "Check your branch's monthly sales performance.", icon: 'doc' },
     { key: 'yearend', label: 'Year End Report', text: "View your branch's annual sales summary.", icon: 'doc' },
   ]
