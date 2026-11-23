@@ -70,6 +70,10 @@ const FILLED_HEAD = 'bg-[#dcefe8] text-brand-pine'
 const FILLED_CELL = 'bg-[#f6fbf9]'
 const EMPTIES_HEAD = 'bg-[#fbecd9] text-[#8a4b0f]'
 const EMPTIES_CELL = 'bg-[#fffaf3]'
+// Sales to Variance (under the gap): a deeper shade, so they stand apart from the rows above
+const FILLED_LOWER = 'bg-[#e3f1eb]'
+const EMPTIES_LOWER = 'bg-[#fcefdc]'
+const LABEL_LOWER = 'bg-[#dcece5]'
 const REMARKS_HEAD = 'bg-[#dde8f6] text-[#1f4e8c]'
 const REMARKS_LABEL = 'bg-[#edf3fb] text-[#1f4e8c]'
 const REMARKS_CELL = 'bg-[#f7faff]'
@@ -611,17 +615,17 @@ export default function InventoryTable({
   // one row of the table: a label, then the FILLED cells, then the EMPTIES cells
   const bodyRow = (label, filled, empties, options = {}) => (
     <tr key={label} className={options.height ?? 'h-11'}>
-      <th scope="row" className={`${BODY_LABEL} ${options.bold ? 'font-bold' : 'font-medium'}`}>
+      <th scope="row" className={`${BODY_LABEL} ${options.lower ? LABEL_LOWER : ''} ${options.bold ? 'font-bold' : 'font-medium'}`}>
         {label}
       </th>
       {rows.map((r, i) => (
-        <td key={r.size} className={`${BODY_CELL} ${FILLED_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''}`} style={outline(FILLED_LINE, { l: i === 0, r: i === rows.length - 1, b: options.last })}>{filled(r)}</td>
+        <td key={r.size} className={`${BODY_CELL} ${options.lower ? FILLED_LOWER : FILLED_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''}`} style={outline(FILLED_LINE, { t: options.top, l: i === 0, r: i === rows.length - 1, b: options.last })}>{filled(r)}</td>
       ))}
       {SHOW_EMPTIES &&
         rows.map((r, i) => {
           const e = emptyBySize[r.size]
           return (
-            <td key={`empty-${r.size}`} className={`${BODY_CELL} ${EMPTIES_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''} ${e ? '' : 'text-gray-400'}`} style={outline(EMPTIES_LINE, { l: i === 0, r: i === rows.length - 1, b: options.last })}>
+            <td key={`empty-${r.size}`} className={`${BODY_CELL} ${options.lower ? EMPTIES_LOWER : EMPTIES_CELL} ${options.bold ? 'font-bold' : ''} ${i === 0 ? GAP : ''} ${e ? '' : 'text-gray-400'}`} style={outline(EMPTIES_LINE, { t: options.top, l: i === 0, r: i === rows.length - 1, b: options.last })}>
               {e ? empties(e) : '-'}
             </td>
           )
@@ -884,7 +888,7 @@ export default function InventoryTable({
                   ),
                 // EMPTIES: one empty for each FILLED sale, + borrowed tanks returned
                 (e) => (editing ? liveEmpties(e).sales : (Number(e.sales) || 0) + emptiesSaved(e).borrowed),
-                { height: 'h-12' }
+                { height: 'h-12', lower: true, top: true }
               )}
 
               {/* Ending Inventory shows the same number as the Actual Count (Ending - Variance + Buy):
@@ -908,7 +912,8 @@ export default function InventoryTable({
                     </span>
                   )
                 },
-                (e) => (editing ? liveEmpties(e).actual : (e.actual ?? e.ending))
+                (e) => (editing ? liveEmpties(e).actual : (e.actual ?? e.ending)),
+                { lower: true }
               )}
 
               {/* Actual Count = Ending - Variance + Buy (FILLED and EMPTIES) */}
@@ -916,7 +921,7 @@ export default function InventoryTable({
                 'Actual Count',
                 (r) => (editing ? liveFilled(r).actual : (r.actual ?? r.ending)),
                 (e) => (editing ? liveEmpties(e).actual : (e.actual ?? e.ending)),
-                { bold: true }
+                { bold: true, lower: true }
               )}
 
               {/* FILLED: typed (defects, swaps between branches), and the Buy (added).
@@ -987,7 +992,7 @@ export default function InventoryTable({
                     </span>
                   )
                 },
-                { height: 'h-28', last: true }
+                { height: 'h-28', last: true, lower: true }
               )}
             </tbody>
           </table>
