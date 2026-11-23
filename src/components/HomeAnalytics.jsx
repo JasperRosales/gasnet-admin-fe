@@ -20,6 +20,8 @@ const PANEL_TITLE = 'text-[15px] font-semibold text-gray-900'
 const ALL = 0 // the branch filter: every branch
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const pad2 = (n) => String(n).padStart(2, '0')
+const compactPeso = (n) =>
+  n >= 1_000_000 ? `₱${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `₱${(n / 1_000).toFixed(1)}k` : `₱${Math.round(n)}`
 
 // chart colors: series (identity) and stock status (state, always shown with a label too)
 // sizes in the pie: a fixed order (validated for color-blind separation), the same size keeps its color
@@ -112,8 +114,8 @@ function SizePie({ rows }) {
   }))
   const shown = slices.find((x) => x.size === hover)
   return (
-    <div className="grid items-center gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
-      <svg viewBox="0 0 100 100" className="mx-auto size-[150px] -rotate-90" role="img" aria-label="Share of revenue by cylinder size">
+    <div className="grid items-center gap-4 md:grid-cols-[230px_minmax(0,1fr)]">
+      <svg viewBox="0 0 100 100" className="mx-auto size-[230px] -rotate-90" role="img" aria-label="Share of revenue by cylinder size">
         <circle cx="50" cy="50" r="50" fill="#eef2f0" />
         {slices
           .filter((x) => x.len > 0)
@@ -215,8 +217,8 @@ async function fetchHome(fromKey, toKey) {
 }
 
 // Admin Home analytics, filtered by one branch (or all), a month (or the whole year) and a year:
-//  Sales: the period's numbers vs the same days of the period before, revenue vs expenses per day
-//  (or per month for a whole year), sales by size and by branch.
+//  Sales: the period's numbers vs the same days of the period before, revenue vs expenses for the
+//  last 3 months, sales by size (pie) and by branch.
 //  Inventory (always now): filled stock per branch and size, with low / out of stock marked.
 export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const now = new Date()
@@ -240,7 +242,11 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const prevStart = m ? new Date(y, m - 2, 1) : new Date(y - 1, 0, 1)
   const todayStart = daysAgo(0)
   const tomorrow = daysAgo(-1)
-  const fromKey = dateString(prevStart)
+  // the revenue vs expenses chart: the last 3 months up to the chosen month (a whole year: up to
+  // its last month, or this month for this year)
+  const lastMonth = m || (y === now.getFullYear() ? now.getMonth() + 1 : 12)
+  const threeStart = new Date(y, lastMonth - 3, 1)
+  const fromKey = dateString(threeStart < prevStart ? threeStart : prevStart)
   const toKey = dateString(end > tomorrow ? end : tomorrow)
 
   // loads again when the period changes, and on every live change of the tables below
@@ -286,13 +292,11 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const periodText = m ? `${MONTHS[m - 1]} ${year}` : year
 
   // revenue vs expenses: per day of the month, or per month of the year (up to today)
-  const buckets = m
-    ? Array.from({ length: new Date(y, m, 0).getDate() }, (_, i) => {
-        const a = new Date(y, m - 1, i + 1)
-        const b = new Date(y, m - 1, i + 2)
-        return { key: i, label: String(i + 1), tick: i === 0 || (i + 1) % 5 === 0, title: a.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }), a, b }
-      })
-    : MONTHS.map((name, i) => ({ key: i, label: name.slice(0, 3), tick: true, title: `${name} ${year}`, a: new Date(y, i, 1), b: new Date(y, i + 1, 1) }))
+  const buckets = [2, 1, 0].map((back) => {
+    const a = new Date(y, lastMonth - 1 - back, 1)
+    const b = new Date(y, lastMonth - back, 1)
+    return { key: back, label: `${MONTHS[a.getMonth()].slice(0, 3)} ${a.getFullYear()}`, title: `${MONTHS[a.getMonth()]} ${a.getFullYear()}`, a, b }
+  })
   const trend = buckets
     .filter((k) => k.a <= todayStart)
     .map((k) => {
@@ -300,7 +304,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       return { ...k, revenue: revenue(list), expenses: expensesOfOrders(list), sales: salesOf(list) }
     })
   const trendMax = Math.max(...trend.map((d) => Math.max(d.revenue, d.expenses)), 1)
-  const best = trend.reduce((a, b) => (b.revenue > (a?.revenue ?? 0) ? b : a), null)
 
   // sizes sold in the period
   const sizeRows = sizes.map((s) => {
@@ -412,26 +415,28 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       {/* ================= SALES ================= */}
       <SectionTitle hint={`${scopeText} · ${periodText}`}>Sales</SectionTitle>
 
-        {/* revenue vs expenses per day (a month) or per month (a year) */}
+        {/* revenue vs expenses, the last 3 months */}
         <div className={PANEL}>
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className={PANEL_TITLE}>Revenue vs expenses, per {m ? 'day' : 'month'}</span>
+            <span className={PANEL_TITLE}>Revenue vs expenses, last 3 months</span>
             <span className="text-[13px] tabular-nums text-gray-500">
-              {best && best.revenue > 0 ? `best: ${best.title} (${peso(best.revenue)})` : ''}
+              net {peso(sum(trend, (d) => d.revenue - d.expenses))} in 3 months
             </span>
           </div>
-          <div key={animKey} className={`flex h-40 items-end ${m ? 'gap-[3px]' : 'gap-2'} border-b border-gray-200`} role="img" aria-label={`Revenue and expenses per ${m ? 'day' : 'month'}, ${periodText}`}>
-            {trend.map((d) => (
-              <div key={d.key} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-[1px]">
+          <div key={animKey} className="flex h-52 items-end gap-6 border-b border-gray-200 px-2" role="img" aria-label={`Revenue and expenses per month, ${trend.map((d) => d.title).join(', ')}`}>
+            {trend.map((d, n) => (
+              <div key={d.key} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-[3px]">
                 {[
                   { v: d.revenue, c: C.revenue },
                   { v: d.expenses, c: C.expenses },
                 ].map((bar, i) => (
-                  <div
-                    key={i}
-                    className="chart-bar-v w-full max-w-5 rounded-t-[3px]"
-                    style={{ height: `${(bar.v / trendMax) * 90}%`, minHeight: bar.v > 0 ? 2 : 0, background: bar.c, animationDelay: `${d.key * (m ? 20 : 50)}ms` }}
-                  />
+                  <div key={i} className="flex h-full w-full max-w-16 flex-col items-center justify-end">
+                    <span className="mb-1 text-[12px] tabular-nums text-gray-700">{bar.v > 0 ? compactPeso(bar.v) : ''}</span>
+                    <div
+                      className="chart-bar-v w-full rounded-t-[4px]"
+                      style={{ height: `${(bar.v / trendMax) * 82}%`, minHeight: bar.v > 0 ? 2 : 0, background: bar.c, animationDelay: `${n * 150 + i * 60}ms` }}
+                    />
+                  </div>
                 ))}
                 <Tip>
                   <div className="font-semibold">{d.title}</div>
@@ -443,16 +448,22 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               </div>
             ))}
           </div>
-          <div className={`mt-1 flex ${m ? 'gap-[3px]' : 'gap-2'}`}>
+          <div className="mt-1.5 flex gap-6 px-2">
             {trend.map((d) => (
-              <span key={d.key} className="min-w-0 flex-1 text-center text-[11px] text-gray-500">{d.tick ? d.label : ''}</span>
+              <span key={d.key} className="min-w-0 flex-1 text-center text-[13px]">
+                <span className="block font-semibold text-gray-900">{d.label}</span>
+                <span className={`block tabular-nums ${d.revenue - d.expenses < 0 ? 'text-brand-red' : 'text-gray-500'}`}>
+                  net {peso(d.revenue - d.expenses)}
+                </span>
+              </span>
             ))}
           </div>
           <Legend
             items={[
               { color: C.revenue, label: 'Revenue' },
               { color: C.expenses, label: 'Expenses' },
-              { mark: '↑', label: 'hover a bar for its net and sales' },
+              { mark: '₱k / ₱M', label: 'thousand / million pesos' },
+              { mark: '↑', label: 'hover a month for its sales' },
             ]}
           />
         </div>
