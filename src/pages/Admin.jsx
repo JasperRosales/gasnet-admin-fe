@@ -15,6 +15,7 @@ const UpdatePrice = lazy(() => import('./UpdatePrice'))
 const MonthlySales = lazy(() => import('./MonthlySales'))
 const WeeklySales = lazy(() => import('./WeeklySales'))
 const YearEndReport = lazy(() => import('./YearEndReport'))
+const DailySalesReport = lazy(() => import('./DailySalesReport'))
 const TankRevolving = lazy(() => import('./TankRevolving'))
 const AdminHome = lazy(() => import('./AdminHome'))
 const CustomerProfile = lazy(() => import('./CustomerProfile'))
@@ -27,6 +28,7 @@ const OVERALL = 0 // "Overall" under Branches: the total of all branches
 const PAGE_PATHS = {
   home: '/home',
   tankcount: '/tanks-count',
+  daily: '/daily-report',
   weekly: '/weekly',
   monthly: '/monthly',
   yearend: '/year-end',
@@ -35,8 +37,9 @@ const PAGE_PATHS = {
   analytics: '/analytics',
   accounts: '/manage-staff',
 }
-// the three reports share one Reports item in the sidebar, with a tab for each
+// the reports share one Reports item in the sidebar, with a tab for each
 const REPORT_TABS = [
+  { key: 'daily', label: 'Daily Sales Report' },
   { key: 'weekly', label: 'Weekly Sales Report' },
   { key: 'monthly', label: 'Monthly Sales Report' },
   { key: 'yearend', label: 'Year End Report' },
@@ -69,6 +72,7 @@ export default function Admin({ user }) {
   const waiting = useWaitingOrders(null) // website orders waiting, every branch
   const notes = useAdminNotifications(user?.id) // sales, voids, staff edits, low stock, accounts
   const [panelOpen, setPanelOpen] = useState(false)
+  const [dailyBranch, setDailyBranch] = useState(OVERALL) // Reports > Daily: 0 = all branches
 
   // the page a notification is about
   const openNotification = (n) => {
@@ -92,7 +96,7 @@ export default function Admin({ user }) {
   // clicking Branches from another page starts at Overall
   const selectTab = (key) => {
     if (key === 'reports') {
-      if (!isReport(tab)) setTab('weekly')
+      if (!isReport(tab)) setTab('daily')
     } else if (key === 'branches') {
       if (tab !== 'branches') go(branchPath(OVERALL))
     } else setTab(key)
@@ -204,7 +208,28 @@ export default function Admin({ user }) {
               {t.label}
             </button>
           ))}
+          {tab === 'daily' && (
+            <select
+              className="ml-auto rounded-lg border border-(color:--border) bg-white px-3 py-2"
+              value={dailyBranch}
+              onChange={(e) => setDailyBranch(Number(e.target.value))}
+              aria-label="Branch"
+            >
+              <option value={OVERALL}>All branches</option>
+              {BRANCHES.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
         </div>
+      )}
+
+      {tab === 'daily' && (
+        <DailySalesReport
+          key={dailyBranch}
+          branch={dailyBranch === OVERALL ? null : dailyBranch}
+          canEdit={dailyBranch === ADMIN_BRANCH}
+        />
       )}
 
       {tab === 'weekly' && <WeeklySales />}
