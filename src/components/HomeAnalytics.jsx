@@ -17,6 +17,7 @@ const GREEN = '#0b4436'
 const CARD = 'rounded-2xl border border-(color:--border) bg-white shadow-sm'
 const PANEL = 'rounded-xl border border-(color:--border) p-3'
 const PANEL_TITLE = 'text-[15px] font-semibold text-gray-900'
+const ALL = 0 // the branch filter: every branch
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 // chart colors: series (identity) and stock status (state, always shown with a label too)
@@ -108,13 +109,14 @@ function SectionTitle({ children, hint }) {
 //  filled vs empty tanks per branch.
 // Loads the accepted orders of the last 14 days, the current stock and today's empties.
 export default function HomeAnalytics({ branch, onOpenAnalytics }) {
-  const [onlyBranch, setOnlyBranch] = useState(false)
+  const [picked, setPicked] = useState(ALL) // the branch filter: ALL or a branch id
   // picking another branch on the home page filters the analytics to it
   const [shownBranch, setShownBranch] = useState(branch)
   if (shownBranch !== branch) {
     setShownBranch(branch)
-    setOnlyBranch(true)
+    setPicked(branch)
   }
+  const onlyBranch = picked !== ALL
   const [orders, setOrders] = useState(null)
   const [stock, setStock] = useState([]) // [{ branch, item_name, quantity }]
   const [empties, setEmpties] = useState({}) // { branch: { size: count } }
@@ -170,7 +172,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   })
 
   const loading = orders === null
-  const branchIds = onlyBranch ? [branch] : BRANCHES.map((b) => b.id)
+  const branchIds = onlyBranch ? [picked] : BRANCHES.map((b) => b.id)
   const rows = (orders || []).filter((o) => branchIds.includes(o.branch))
 
   // ---------------- sales ----------------
@@ -274,7 +276,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
     },
   ]
 
-  const scopeText = onlyBranch ? branchName(branch) : 'all branches'
+  const scopeText = onlyBranch ? branchName(picked) : 'all branches'
 
   return (
     // dimmed until the first numbers arrive, so empty charts are not mistaken for no sales
@@ -284,20 +286,17 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
           Analytics
         </h2>
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
-          <div className="flex rounded-lg border border-(color:--border) p-0.5 text-[14px] font-semibold" role="group" aria-label="Branch filter">
-            {[
-              { only: false, label: 'All branches' },
-              { only: true, label: branchName(branch) },
-            ].map((f) => (
+          <div className="flex flex-wrap gap-1 rounded-lg border border-(color:--border) p-0.5 text-[14px] font-semibold" role="group" aria-label="Branch filter">
+            {[{ id: ALL, name: 'All branches' }, ...BRANCHES].map((f) => (
               <button
-                key={String(f.only)}
+                key={f.id}
                 type="button"
-                aria-pressed={onlyBranch === f.only}
-                onClick={() => setOnlyBranch(f.only)}
+                aria-pressed={picked === f.id}
+                onClick={() => setPicked(f.id)}
                 className="min-h-0 rounded-md px-3 py-1 text-[14px] text-white"
-                style={{ background: onlyBranch === f.only ? GREEN : '#5d8f80' }}
+                style={{ background: picked === f.id ? GREEN : '#5d8f80' }}
               >
-                {f.label}
+                {f.name}
               </button>
             ))}
           </div>
