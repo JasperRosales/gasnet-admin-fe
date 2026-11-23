@@ -285,9 +285,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
   const invBranches = BRANCHES.filter((b) => branchIds.includes(b.id))
   const statusOf = (qty, size) => stockStatus(`LPG Cylinder ${size}`, qty, levels)
   const grid = invBranches.map((b) => ({ ...b, cells: sizes.map((s) => ({ size: s, qty: filledOf(b.id, s) })) }))
-  const alerts = grid.flatMap((b) => b.cells.filter((c) => statusOf(c.qty, c.size) !== 'In stock').map((c) => ({ ...c, branch: b.name })))
-  const filledTotal = sum(grid, (b) => sum(b.cells, (c) => c.qty))
-  const emptyTotal = sum(invBranches, (b) => sum(Object.values(empties[b.id] || {}), Number))
 
   // days of stock left per size: filled now / average tanks sold a day (last 7 days)
   const cover = sizes.map((s) => {
@@ -324,13 +321,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
       change: changeOf(net(period), net(prev)),
       negative: net(period) < 0,
       sub: revenue(period) > 0 ? `margin ${((net(period) / revenue(period)) * 100).toFixed(1)}%` : '',
-    },
-    { label: 'Filled Tanks Now', value: num(filledTotal), sub: `${num(emptyTotal)} empty` },
-    {
-      label: 'Stock Alerts',
-      value: alerts.length,
-      sub: alerts.length ? `${alerts.filter((a) => a.qty === 0).length} out, ${alerts.filter((a) => a.qty > 0).length} low` : 'all sizes in stock',
-      negative: alerts.some((a) => a.qty === 0),
     },
   ]
 
@@ -377,7 +367,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
 
       {/* ---- the period at a glance ---- */}
       <div>
-        <div className={`grid grid-cols-6 gap-3 max-[1300px]:grid-cols-3 max-[700px]:grid-cols-2 ${loading ? 'animate-pulse opacity-60' : ''}`}>
+        <div className={`grid grid-cols-4 gap-3 max-[1000px]:grid-cols-2 ${loading ? 'animate-pulse opacity-60' : ''}`}>
           {tiles.map((t) => (
             <div key={t.label} className="flex flex-col gap-0.5 rounded-xl border border-(color:--border) p-3">
               <span className="text-[13px] text-gray-500">{t.label}</span>
