@@ -8,3 +8,6 @@ export function dateString(d) {
 export const todayString = () => dateString(new Date())
 
 export const localDateString = (iso) => dateString(new Date(iso))
+
+// true for a Saturday or Sunday ('YYYY-MM-DD')
+export const isWeekend = (ymd) => [0, 6].includes(new Date(`${ymd}T00:00:00`).getDay())

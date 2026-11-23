@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import usePopupMessage from '../lib/usePopupMessage'
 import { branchName } from '../lib/branches'
-import { dateString, localDateString, todayString } from '../lib/dateUtils'
+import { dateString, isWeekend, localDateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { expensesOfOrders, otherIncomeOfOrders } from '../lib/expenses'
 import { isGcash, isGross, soldOf, sumAmount } from '../lib/monthly'
@@ -127,24 +127,27 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
     })
   }
 
-  // every day of the month, up to today
+  // the weekdays of the month up to today that had sales (no Saturdays and Sundays, no empty days;
+  // today stays while it can be edited)
   const [y, m] = month.split('-').map(Number)
   const lastDay = new Date(y, m, 0).getDate()
   const today = todayString()
-  const days = Array.from({ length: lastDay }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`).filter(
-    (d) => d <= today
-  )
+  const editable = canEdit && Boolean(branch)
 
   const ordersOn = (day) => orders.filter((o) => localDateString(o.accepted_at) === day)
   const typedOf = (day, key) => entries[`${day}:${key}`] ?? null
   const typedTotal = (key, list) => list.reduce((sum, d) => sum + (typedOf(d, key) || 0), 0)
+  const hasSales = (day) =>
+    ordersOn(day).length > 0 || Object.keys(entries).some((k) => k.startsWith(`${day}:`) && Number(entries[k]))
+  const days = Array.from({ length: lastDay }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`).filter(
+    (d) => d <= today && !isWeekend(d) && (hasSales(d) || (editable && d === today))
+  )
   // the first half of the month (the 1st to the 15th), for the subtotal row
   const firstHalf = days.filter((d) => Number(d.slice(8)) <= 15)
+  const subtotalAfter = `${month}-15` <= today ? firstHalf[firstHalf.length - 1] : null
   const ordersOfDays = (list) => orders.filter((o) => list.includes(localDateString(o.accepted_at)))
 
   const sizeCols = Math.max(sizes.length, 1)
-  const editable = canEdit && Boolean(branch)
-
   // Gcash: from the log (Thru Gcash orders, Gcash Other Income), plus the amount typed for the day
   // (for example a debt from before the system paid through Gcash)
   const gcashCell = (list, day, dayList) => {
@@ -270,7 +273,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
                   {cells(ordersOn(d), d)}
                 </tr>
                 {/* the subtotal of the 1st to the 15th, between the 15th and the 16th */}
-                {d.endsWith('-15') && (
+                {d === subtotalAfter && (
                   <tr className="bg-[#eef6f3] font-semibold">
                     <td className={LABEL}>Subtotal (1–15)</td>
                     {cells(ordersOfDays(firstHalf), null, firstHalf)}
@@ -280,7 +283,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
             ))}
             {days.length === 0 && (
               <tr>
-                <td colSpan={9 + sizeCols} className={CELL}>No days yet in {monthText(month)}</td>
+                <td colSpan={9 + sizeCols} className={CELL}>No sales yet in {monthText(month)}</td>
               </tr>
             )}
           </tbody>
@@ -288,7 +291,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
             <tfoot>
               <tr className="font-bold">
                 <td className={LABEL}>Total</td>
-                {cells(orders, null)}
+                {cells(ordersOfDays(days), null)}
               </tr>
             </tfoot>
           )}

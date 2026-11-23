@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import usePopupMessage from '../lib/usePopupMessage'
 import { BRANCHES, branchName } from '../lib/branches'
-import { dateString, localDateString, todayString } from '../lib/dateUtils'
+import { dateString, isWeekend, localDateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { expensesOfOrders, otherIncomeOfOrders } from '../lib/expenses'
 import DateButton from '../components/DateButton'
@@ -64,8 +64,6 @@ export default function WeeklySales({ branch }) {
 
   const today = todayString()
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i))
-  // Per Day lists only the days that have come (this week: Monday up to today, no days ahead)
-  const shownDays = days.filter((d) => d <= today)
   const shownBranches = branch ? BRANCHES.filter((b) => b.id === branch) : BRANCHES
 
   const load = async () => {
@@ -150,6 +148,17 @@ export default function WeeklySales({ branch }) {
   const dayBranches = only ? [only] : shownBranches.map((b) => b.id)
   const dayOrders = orders.filter((o) => dayBranches.includes(o.branch))
   const allBranches = shownBranches.map((b) => b.id)
+  // no Saturdays and Sundays, no days ahead, and only the days / branches that had sales
+  const weekdays = days.filter((d) => d <= today && !isWeekend(d))
+  const onDays = (list, dayList) => list.filter((o) => dayList.includes(localDateString(o.accepted_at)))
+  const typedAny = (branches, dayList) =>
+    daily.some((e) => branches.includes(e.branch) && dayList.includes(e.day) && Number(e.amount))
+  const shownDays = weekdays.filter(
+    (d) => onDays(dayOrders, [d]).length > 0 || typedAny(dayBranches, [d])
+  )
+  const branchRows = shownBranches.filter(
+    (b) => onDays(orders, weekdays).some((o) => o.branch === b.id) || typedAny([b.id], weekdays)
+  )
   const sheetLabel = SHEETS.find((s) => s.key === sheet).label
   const scope = sheet === 'days' && only ? branchName(only) : branch ? branchName(branch) : 'All branches'
 
@@ -222,13 +231,13 @@ export default function WeeklySales({ branch }) {
               ? shownDays.map((d) => (
                   <tr key={d}>
                     <td className={LABEL}>{dayLabel(d)}</td>
-                    {cells(dayOrders.filter((o) => localDateString(o.accepted_at) === d), dayBranches, [d])}
+                    {cells(onDays(dayOrders, [d]), dayBranches, [d])}
                   </tr>
                 ))
-              : shownBranches.map((b) => (
+              : branchRows.map((b) => (
                   <tr key={b.id}>
                     <td className={LABEL}>{b.name}</td>
-                    {cells(orders.filter((o) => o.branch === b.id), [b.id], days)}
+                    {cells(onDays(orders, weekdays).filter((o) => o.branch === b.id), [b.id], weekdays)}
                   </tr>
                 ))}
           </tbody>
@@ -236,7 +245,9 @@ export default function WeeklySales({ branch }) {
             <tfoot>
               <tr className="font-bold">
                 <td className={LABEL}>Week total</td>
-                {sheet === 'days' ? cells(dayOrders, dayBranches, days) : cells(orders, allBranches, days)}
+                {sheet === 'days'
+                  ? cells(onDays(dayOrders, weekdays), dayBranches, weekdays)
+                  : cells(onDays(orders, weekdays), allBranches, weekdays)}
               </tr>
             </tfoot>
           )}
