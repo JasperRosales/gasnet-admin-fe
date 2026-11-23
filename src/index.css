@@ -163,3 +163,15 @@ input::-ms-reveal,
 input::-ms-clear {
   display: none;
 }
+
+/* Admin Home charts: bars grow from the baseline and the pie sweeps in (again on every filter
+   change); a change of numbers slides to the new size */
+@keyframes chart-grow-y { from { transform: scaleY(0); } }
+@keyframes chart-grow-x { from { transform: scaleX(0); } }
+@keyframes chart-pie { from { stroke-dasharray: 0 var(--c); } }
+.chart-bar-v { transform-origin: bottom; animation: chart-grow-y 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: height 0.5s ease; }
+.chart-bar-h { transform-origin: left; animation: chart-grow-x 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: width 0.5s ease; }
+.chart-pie-seg { animation: chart-pie 0.6s ease-out both; transition: opacity 0.15s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .chart-bar-v, .chart-bar-h, .chart-pie-seg { animation: none; transition: none; }
+}

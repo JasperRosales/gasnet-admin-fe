@@ -22,6 +22,9 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const pad2 = (n) => String(n).padStart(2, '0')
 
 // chart colors: series (identity) and stock status (state, always shown with a label too)
+// sizes in the pie: a fixed order (validated for color-blind separation), the same size keeps its color
+const SIZE_COLORS = ['#15805f', '#e08a1e', '#3a6fc0', '#b13c78']
+
 const C = {
   revenue: '#0b4436',
   expenses: '#d97706',
@@ -74,14 +77,92 @@ function Tip({ children }) {
 }
 
 // one horizontal bar made of segments (stacked), with a 2px gap between them
-function StackBar({ parts, total, height = 'h-3' }) {
+function StackBar({ parts, total, height = 'h-3', delay = 0 }) {
   return (
     <div className={`flex ${height} w-full gap-[2px] overflow-hidden rounded-full bg-gray-100`}>
       {parts
         .filter((p) => p.value > 0)
         .map((p) => (
-          <div key={p.label} style={{ width: `${(p.value / Math.max(total, 1)) * 100}%`, background: p.color }} />
+          <div
+            key={p.label}
+            className="chart-bar-h"
+            style={{ width: `${(p.value / Math.max(total, 1)) * 100}%`, background: p.color, animationDelay: `${delay}ms` }}
+          />
         ))}
+    </div>
+  )
+}
+
+// Pie of the sales by size (share of revenue). Slices sweep in one after another; hovering a slice
+// or its row shows its numbers. rows: [{ size, revenue, tanks }]
+function SizePie({ rows }) {
+  const [hover, setHover] = useState(null)
+  const total = sum(rows, (r) => r.revenue)
+  const R = 50 // the pie radius; drawn as a circle of radius R/2 with a stroke as wide as R
+  const CIRC = 2 * Math.PI * (R / 2)
+  const GAP = total > 0 && rows.filter((r) => r.revenue > 0).length > 1 ? 1.2 : 0
+  const lens = rows.map((r) => (total > 0 ? (r.revenue / total) * CIRC : 0))
+  // each slice starts where the ones before it end
+  const slices = rows.map((r, i) => ({
+    ...r,
+    color: SIZE_COLORS[i % SIZE_COLORS.length],
+    len: lens[i],
+    offset: lens.slice(0, i).reduce((a, b) => a + b, 0),
+    share: total > 0 ? r.revenue / total : 0,
+  }))
+  const shown = slices.find((x) => x.size === hover)
+  return (
+    <div className="grid items-center gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
+      <svg viewBox="0 0 100 100" className="mx-auto size-[150px] -rotate-90" role="img" aria-label="Share of revenue by cylinder size">
+        <circle cx="50" cy="50" r="50" fill="#eef2f0" />
+        {slices
+          .filter((x) => x.len > 0)
+          .map((x) => (
+            <circle
+              key={x.size}
+              className="chart-pie-seg cursor-pointer"
+              cx="50"
+              cy="50"
+              r={R / 2}
+              fill="none"
+              stroke={x.color}
+              strokeWidth={R}
+              strokeDasharray={`${Math.max(x.len - GAP, 0.01)} ${CIRC}`}
+              strokeDashoffset={-x.offset}
+              style={{ '--c': CIRC, animationDelay: `${(x.offset / CIRC) * 600}ms`, opacity: hover && hover !== x.size ? 0.35 : 1 }}
+              onMouseEnter={() => setHover(x.size)}
+              onMouseLeave={() => setHover(null)}
+            >
+              <title>{`${x.size}: ${peso(x.revenue)} (${(x.share * 100).toFixed(1)}%), ${num(x.tanks)} tanks`}</title>
+            </circle>
+          ))}
+      </svg>
+      <div className="grid gap-1.5">
+        {slices.map((x) => (
+          <div
+            key={x.size}
+            className={`flex items-center justify-between gap-2 rounded-md px-1.5 py-1 text-[13px] ${hover === x.size ? 'bg-gray-100' : ''}`}
+            onMouseEnter={() => setHover(x.size)}
+            onMouseLeave={() => setHover(null)}
+          >
+            <span className="flex items-center gap-1.5 text-gray-700">
+              <span className="inline-block size-2.5 rounded-[3px]" style={{ background: x.color }} />
+              {x.size}
+              <span className="font-semibold text-gray-900">{(x.share * 100).toFixed(0)}%</span>
+            </span>
+            <span className="tabular-nums text-gray-900">
+              {peso(x.revenue)} <span className="text-gray-500">· {num(x.tanks)} pcs</span>
+            </span>
+          </div>
+        ))}
+        <p className="m-0 min-h-5 px-1.5 text-[12px] text-gray-500">
+          {shown
+            ? `${shown.size}: ${(shown.share * 100).toFixed(1)}% of revenue, ${num(shown.tanks)} tanks`
+            : total > 0
+              ? `Total ${peso(total)}`
+              : 'No sales in this period'}
+        </p>
+      </div>
     </div>
   )
 }
@@ -179,6 +260,8 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
 
   // dimmed while the numbers of a newly picked period load
   const loading = orders === null || data.key !== `${fromKey}:${toKey}`
+  // the charts animate again when the filters change (once the new numbers are in)
+  const animKey = `${picked}:${month}:${year}:${loading ? 'wait' : 'ready'}`
   const branchIds = onlyBranch ? [picked] : BRANCHES.map((b) => b.id)
   const rows = (orders || []).filter((o) => branchIds.includes(o.branch))
   const between = (a, b) => rows.filter((o) => {
@@ -224,7 +307,6 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
     const list = period.filter((o) => sizeOf(o.item_name) === s)
     return { size: s, tanks: tanksOf(list), revenue: revenue(list) }
   })
-  const sizeMax = Math.max(...sizeRows.map((s) => s.revenue), 1)
 
   // the period by branch
   const branchRows = BRANCHES.filter((b) => branchIds.includes(b.id))
@@ -338,7 +420,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
               {best && best.revenue > 0 ? `best: ${best.title} (${peso(best.revenue)})` : ''}
             </span>
           </div>
-          <div className={`flex h-40 items-end ${m ? 'gap-[3px]' : 'gap-2'} border-b border-gray-200`} role="img" aria-label={`Revenue and expenses per ${m ? 'day' : 'month'}, ${periodText}`}>
+          <div key={animKey} className={`flex h-40 items-end ${m ? 'gap-[3px]' : 'gap-2'} border-b border-gray-200`} role="img" aria-label={`Revenue and expenses per ${m ? 'day' : 'month'}, ${periodText}`}>
             {trend.map((d) => (
               <div key={d.key} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-[1px]">
                 {[
@@ -347,8 +429,8 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
                 ].map((bar, i) => (
                   <div
                     key={i}
-                    className="w-full max-w-5 rounded-t-[3px]"
-                    style={{ height: `${(bar.v / trendMax) * 90}%`, minHeight: bar.v > 0 ? 2 : 0, background: bar.c }}
+                    className="chart-bar-v w-full max-w-5 rounded-t-[3px]"
+                    style={{ height: `${(bar.v / trendMax) * 90}%`, minHeight: bar.v > 0 ? 2 : 0, background: bar.c, animationDelay: `${d.key * (m ? 20 : 50)}ms` }}
                   />
                 ))}
                 <Tip>
@@ -379,27 +461,15 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
         {/* sizes */}
         <div className={PANEL}>
           <span className={`${PANEL_TITLE} mb-2 block`}>Sales by size</span>
-          <div className="grid gap-2">
-            {sizeRows.map((s) => (
-              <div key={s.size} className="grid gap-1">
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-gray-700">{s.size}</span>
-                  <span className="tabular-nums text-gray-900">
-                    {peso(s.revenue)} <span className="text-gray-500">· {num(s.tanks)} pcs</span>
-                  </span>
-                </div>
-                <StackBar parts={[{ label: 'r', value: s.revenue, color: C.revenue }]} total={sizeMax} height="h-1.5" />
-              </div>
-            ))}
-          </div>
-          <Legend items={[{ color: C.revenue, label: `Revenue, ${periodText}` }, { mark: 'pcs', label: 'tanks sold' }]} />
+          <SizePie key={animKey} rows={sizeRows} />
+          <Legend items={[{ mark: '%', label: `share of revenue, ${periodText}` }, { mark: 'pcs', label: 'tanks sold' }]} />
         </div>
 
         {/* the period by branch */}
         <div className={PANEL}>
           <span className={`${PANEL_TITLE} mb-2 block`}>By branch</span>
           <div className="grid gap-2">
-            {branchRows.map((b) => (
+            {branchRows.map((b, i) => (
               <div key={b.id} className="grid gap-1">
                 <div className="flex justify-between text-[13px]">
                   <span className="text-gray-700">{b.name}</span>
@@ -407,7 +477,7 @@ export default function HomeAnalytics({ branch, onOpenAnalytics }) {
                     {peso(b.revenue)} <span className="text-gray-500">· {b.sales}</span>
                   </span>
                 </div>
-                <StackBar parts={[{ label: 'r', value: b.revenue, color: C.revenue }]} total={branchMax} height="h-1.5" />
+                <StackBar key={animKey} parts={[{ label: 'r', value: b.revenue, color: C.revenue }]} total={branchMax} height="h-1.5" delay={i * 60} />
               </div>
             ))}
           </div>
