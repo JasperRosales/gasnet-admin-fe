@@ -1,6 +1,6 @@
 // Edge Function "insights": asks Gemini for the AI Insights cards of the Analytics page
-// (3 insights about the period and 3 predictions from the 4-week forecast).
-// The page sends the JSON summary of the numbers it shows; Gemini sends back 6 short items.
+// (4 insights about the period, 2 predictions from the 4-week forecast and 3 business decisions).
+// The page sends the JSON summary of the numbers it shows; Gemini sends back 9 items.
 // The Gemini API key is the Supabase secret GEMINI_API_KEY (it never reaches the browser);
 // GEMINI_MODEL is optional. Deploy: supabase functions deploy insights
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -22,24 +22,45 @@ const reply = (status: number, body: unknown) =>
     headers: { ...CORS, "Content-Type": "application/json" },
   });
 
-const PROMPT = `You are a business analyst for an LPG (cooking gas) distributor in the Philippines.
-Below is a JSON summary of sales, orders and cylinder inventory for the selected branch and period.
-Money is in Philippine pesos. Sizes are cylinder weights in kg.
+const PROMPT = `You are a senior business analyst and advisor for an LPG (cooking gas) distributor in the
+Philippines with several branches. Below is a JSON summary of sales, orders and cylinder inventory
+for the selected branch and period. Money is in Philippine pesos. Sizes are cylinder weights in kg.
+"previousPeriod" is the same-length period before, for comparison.
+"expensesByBranch" compares branches. "bySize" is sales per cylinder size. "customerMix" splits
+walk-in, commercial and delivered orders. "inventory" is the current filled / empty / borrowed count.
 "forecast" holds projections already computed from the last 4 weeks of sales (weekday averages
 and the recent trend): next 7 days, this month's projected revenue / expenses / net income,
 and the day each cylinder size runs out at the current pace.
 
-Write exactly 6 short, practical items for the owner:
-- 3 with "kind": "insight" about what happened in the period (best seller, revenue vs expenses and
-  net income, customer mix, payments or delivery).
-- 3 with "kind": "prediction" about what is coming, based on "forecast": the month-end outlook,
-  which size runs out first and when (and how many to order), and the busy / quiet days ahead.
-  Say what the owner should do about it.
+Write exactly 9 items for the owner, in this order:
+
+A) 4 with "kind": "insight": what happened and WHY it matters. Cover the most important of:
+   revenue and net income vs the previous period (with the % change), the margin and the biggest
+   cost pressure, the strongest and weakest branch or size, the customer mix, stock health.
+   Explain the likely cause and the consequence, not just the number.
+
+B) 2 with "kind": "prediction", based on "forecast": the month-end outlook (revenue, expenses, net)
+   and the stock-out risk (which size runs out first, on what day, how many to order to cover
+   the next 7 days). If "forecast" is null, predict what to watch next period from the trend.
+
+C) 3 with "kind": "decision": concrete, prudent business decisions the owner can take this week,
+   ranked by expected value. Each must follow from the numbers (pricing, restocking amounts per
+   size, cutting a specific expense, shifting stock between branches, pushing commercial or
+   delivery customers, staffing busy days, collecting utang, etc.). Weigh the risk: prefer
+   low-cost, reversible steps; say what to avoid when the data shows a danger (e.g. selling at a
+   loss, overstocking a slow size).
+
 Each item:
-- "title": 2-4 words
-- "text": one or two sentences, max 35 words, quoting real numbers from the data
-If something has no data, say what to start tracking instead. Do not invent numbers.
-If "forecast" is null, make the predictions about what to watch next period instead.
+- "title": 2-5 words
+- "text": 2-3 sentences, max 55 words, quoting real numbers from the data (₱, %, kg, units, days)
+- "action": for decisions and predictions, one imperative sentence: exactly what to do, with a number
+  (amount, size, branch or date) when the data allows. For insights, the one thing to watch. Max 25 words.
+- "impact": for decisions, the expected result in numbers or a clear outcome (max 20 words);
+  for the others, an empty string.
+- "priority": "high", "medium" or "low": how urgent or valuable it is.
+Use only numbers that are in the data or simply derived from it (sums, differences, percentages).
+Never invent figures. If something has no data, say what to start tracking instead.
+Write plainly, for a busy owner, no jargon.
 
 DATA:
 `;
@@ -49,11 +70,14 @@ const SCHEMA = {
   items: {
     type: "OBJECT",
     properties: {
-      kind: { type: "STRING", enum: ["insight", "prediction"] },
+      kind: { type: "STRING", enum: ["insight", "prediction", "decision"] },
       title: { type: "STRING" },
       text: { type: "STRING" },
+      action: { type: "STRING" },
+      impact: { type: "STRING" },
+      priority: { type: "STRING", enum: ["high", "medium", "low"] },
     },
-    required: ["kind", "title", "text"],
+    required: ["kind", "title", "text", "action", "priority"],
   },
 };
 
@@ -122,10 +146,15 @@ Deno.serve(async (req) => {
     const text = body.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") || "[]";
     const list = JSON.parse(text);
     if (!Array.isArray(list) || list.length === 0) return reply(502, { error: "Gemini returned no insights" });
+    const kinds = ["insight", "prediction", "decision"];
+    const priorities = ["high", "medium", "low"];
     const items = list.map((x) => ({
-      kind: x?.kind === "prediction" ? "prediction" : "insight",
+      kind: kinds.includes(x?.kind) ? x.kind : "insight",
       title: String(x?.title ?? "").slice(0, 80),
-      text: String(x?.text ?? "").slice(0, 400),
+      text: String(x?.text ?? "").slice(0, 600),
+      action: String(x?.action ?? "").slice(0, 300),
+      impact: String(x?.impact ?? "").slice(0, 250),
+      priority: priorities.includes(x?.priority) ? x.priority : "medium",
     }));
     return reply(200, { items, model: MODEL });
   } catch {

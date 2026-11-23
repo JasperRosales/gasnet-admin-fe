@@ -4,7 +4,7 @@
 import { cached, hashKey } from './cache'
 import { supabase } from './supabaseClient'
 
-const PROMPT_VERSION = 5 // bump to drop old cached answers after editing the prompt (in the function)
+const PROMPT_VERSION = 6 // bump to drop old cached answers after editing the prompt (in the function)
 const TTL_MS = 6 * 60 * 60 * 1000 // 6 hours
 
 // set VITE_AI_INSIGHTS=off to hide the AI Insights (for example before the function is deployed)
@@ -30,8 +30,9 @@ async function callInsights(summary) {
     if (!error) {
       const items = Array.isArray(data?.items) ? data.items : []
       if (items.length === 0) throw new Error('Gemini returned no insights')
-      // insights first, then predictions
-      return [...items.filter((x) => x.kind === 'insight'), ...items.filter((x) => x.kind === 'prediction')].slice(0, 6)
+      // insights, then predictions, then decisions
+      const of = (kind) => items.filter((x) => x.kind === kind)
+      return [...of('insight').slice(0, 4), ...of('prediction').slice(0, 2), ...of('decision').slice(0, 3)]
     }
     const { message, status } = await errorOf(error)
     if (![0, 503].includes(status) || attempt >= 3) throw new Error(message)
