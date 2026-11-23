@@ -160,7 +160,7 @@ function GrowBox({ value, onChange, placeholder, onKeyDown, ...rest }) {
 }
 
 // The Daily Sales Log (the orders of a day), used by the staff page and by the admin's Branches page.
-// canEdit = true shows Add order / Accept / Edit / Delete (staff, and the admin on Caloocan).
+// canEdit = true shows Add order / Accept / Edit / Delete (staff on their branch, the admin on every branch).
 export default function SalesReport({
   branch,
   reload, // also refreshes the page that holds it (Staff Home numbers, the sidebar count)
@@ -467,6 +467,7 @@ export default function SalesReport({
       p_remarks: r.remarks,
       p_discount: r.discount === '' ? 0 : nDiscount,
       p_time: r.time.toISOString(),
+      p_branch: branch, // the admin adds to the branch shown; staff to their own
     })
     setSavingNew(false)
     if (ok) {

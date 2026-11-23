@@ -6,8 +6,8 @@ import OverallSales from './OverallSales'
 import DailySalesReport from './DailySalesReport'
 
 const OVERALL = 0 // "Overall": the total of all branches (view only)
-// The admin edits the Stock Inventory, the Daily Sales Log and the Daily Sales Report of Caloocan
-// (the main branch) only.
+// The admin edits the Daily Sales Log of every branch, and the Stock Inventory and the Daily Sales
+// Report of Caloocan (the main branch) only.
 const ADMIN_BRANCH = 1
 
 const OUTLINE =
@@ -88,7 +88,7 @@ export default function BranchView({ branch, view, onViewChange: setView }) {
     <div>
       <SalesReport
         branch={branch}
-        canEdit={branch === ADMIN_BRANCH}
+        canEdit // the admin can edit the Daily Sales Log of every branch
         isAdmin
         headerLeft={headerLeft}
         showRefresh
